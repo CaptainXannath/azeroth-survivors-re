@@ -1,0 +1,32 @@
+name: Build Unsigned IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build Xcode Archive
+        run: |
+          xcodebuild archive \
+            -scheme "YourAppScheme" \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package Payload to IPA
+        run: |
+          mkdir -p Payload
+          cp -r "$RUNNER_TEMP/App.xcarchive/Products/Applications/"*.app Payload/
+          zip -r Game.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-ipa
+          path: Game.ipa
