@@ -1,64 +1,112 @@
 name: iOS IPA
-
 on:
   workflow_dispatch:
   push:
     branches:
       - ios-port-experiment
     paths:
-      - '.github/workflows/ios-ipa.yml'
+      - '.github/workflows/azeroth-survivors-ios-ipa.yml'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'crates/**'
-      - 'scripts/**'
-      - 'ios/**'
-
+      - 'third_party/**'
 permissions:
   contents: read
-
 concurrency:
   group: ios-ipa-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   build-ios-ipa:
     name: Build unsigned iPhone IPA
     runs-on: macos-15
     timeout-minutes: 180
-
     env:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: '0'
       IPHONEOS_DEPLOYMENT_TARGET: '15.0'
-
     steps:
       - name: Check out the branch
         uses: actions/checkout@v4
-
-      - name: Set up Rust and iOS target
+      - name: Set up Rust for iOS
         shell: bash
         run: |
           rustup toolchain install stable --profile minimal
+          rustup default stable
           rustup target add aarch64-apple-ios
           rustc -V
           cargo -V
           xcodebuild -version
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Check required iOS project files
-        shell: bash
-        run: |
-          test -f Cargo.toml
-          test -f crates/warcraft-survivors/Cargo.toml
-          test -f crates/benilla-app/src/survivors/mod.rs
-          echo "Repository files found."
-          echo "The native iOS host and touch-control integration still need to be implemented and validated before an IPA can be built."
-
-      - name: Build Rust library
+      - name: Build the native iOS executable
         shell: bash
         run: |
           cargo build --locked --release \
             --target aarch64-apple-ios \
-            -p warcraft-survivors --lib --no-default-features
+            -p warcraft-survivors \
+            --bin warcraft-survivors \
+            --no-default-features
+      - name: Assemble unsigned IPA
+        shell: bash
+        run: |
+          set -euxo pipefail
+          APP_NAME="WarcraftSurvivors"
+          APP_DIR="$RUNNER_TEMP/Payload/${APP_NAME}.app"
+          mkdir -p "$APP_DIR"
+          cp \
+            "target/aarch64-apple-ios/release/warcraft-survivors" \
+            "$APP_DIR/WarcraftSurvivors"
+          cat > "$APP_DIR/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleDevelopmentRegion</key>
+            <string>en</string>
+            <key>CFBundleExecutable</key>
+            <string>WarcraftSurvivors</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.captainxannath.warcraftsurvivors</string>
+            <key>CFBundleInfoDictionaryVersion</key>
+            <string>6.0</string>
+            <key>CFBundleName</key>
+            <string>Warcraft Survivors</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>0.2.0</string>
+            <key>CFBundleVersion</key>
+            <string>1</string>
+            <key>LSRequiresIPhoneOS</key>
+            <true/>
+            <key>MinimumOSVersion</key>
+            <string>15.0</string>
+            <key>UIDeviceFamily</key>
+            <array>
+              <integer>1</integer>
+              <integer>2</integer>
+            </array>
+            <key>UIRequiredDeviceCapabilities</key>
+            <array>
+              <string>arm64</string>
+            </array>
+            <key>UILaunchScreen</key>
+            <dict/>
+            <key>UIStatusBarHidden</key>
+            <true/>
+            <key>UIViewControllerBasedStatusBarAppearance</key>
+            <false/>
+          </dict>
+          </plist>
+          PLIST
+          plutil -lint "$APP_DIR/Info.plist"
+          cd "$RUNNER_TEMP"
+          /usr/bin/zip -qry \
+            "$GITHUB_WORKSPACE/WarcraftSurvivors-unsigned.ipa" \
+            Payload
+          test -s "$GITHUB_WORKSPACE/WarcraftSurvivors-unsigned.ipa"
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WarcraftSurvivors-unsigned-IPA
+          path: WarcraftSurvivors-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
