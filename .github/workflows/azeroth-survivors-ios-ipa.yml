@@ -1,6 +1,7 @@
 name: iOS IPA
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - ios-port-experiment
@@ -24,10 +25,12 @@ jobs:
     name: Build unsigned iPhone IPA
     runs-on: macos-15
     timeout-minutes: 180
+
     env:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: '0'
       IPHONEOS_DEPLOYMENT_TARGET: '15.0'
+
     steps:
       - name: Check out the branch
         uses: actions/checkout@v4
@@ -35,368 +38,27 @@ jobs:
       - name: Set up Rust and iOS target
         shell: bash
         run: |
-          rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
-          rustup target add aarch64-apple-ios --toolchain 1.98.1
-          rustc +1.98.1 -V
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-apple-ios
+          rustc -V
+          cargo -V
           xcodebuild -version
 
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Apply the iOS host, data path, and touch controls
+      - name: Check required iOS project files
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          
-          def replace_once(path: str, old: str, new: str) -> None:
-              p = Path(path)
-              s = p.read_text()
-              if new in s:
-                  return
-              if old not in s:
-                  raise SystemExit(f"Could not safely patch {path}; expected text was not found")
-              p.write_text(s.replace(old, new, 1))
-          
-          # Add a static-library entry point that UIKit can call after UIApplicationMain starts.
-          cargo_path = Path('crates/warcraft-survivors/Cargo.toml')
-          cargo = cargo_path.read_text()
-          if '[lib]' not in cargo:
-              anchor = 'description = "The benilla client as a Warcraft Survivors game"\n'
-              if anchor not in cargo:
-                  anchor = 'description = "Warcraft Survivors: the benilla client booted server-less into a top-down survival mode on ten battlegrounds"\n'
-              if anchor not in cargo:
-                  raise SystemExit('Could not find the warcraft-survivors Cargo.toml package description')
-              cargo = cargo.replace(anchor, anchor + '\n[lib]\nname = "warcraft_survivors_ios"\ncrate-type = ["staticlib"]\npath = "src/ios_lib.rs"\n', 1)
-              cargo_path.write_text(cargo)
-          
-          Path('crates/warcraft-survivors/src/ios_lib.rs').write_text(r'''use benilla_app::BuildId;
-          
-          /// Called from the UIKit application host after UIApplicationMain is initialized.
-          #[no_mangle]
-          pub extern "C" fn start_winit_app() {
-          // iOS does not provide a shell environment. Let the user supply their own 1.12.1 MPQ files
-          // through Files.app at On My iPhone/Azeroth Survivors/Documents/Data.
-          if std::env::var_os("WOW_DATA").is_none() {
-          if let Some(home) = std::env::var_os("HOME") {
-            let data = std::path::PathBuf::from(home).join("Documents").join("Data");
-            if data.is_dir() {
-                std::env::set_var("WOW_DATA", data);
-            }
-          }
-          }
-          
-          let _ = benilla_app::run_survivors(BuildId {
-          version: env!("CARGO_PKG_VERSION"),
-          describe: env!("BENILLA_GIT_DESCRIBE"),
-          sha: env!("BENILLA_GIT_SHA"),
-          short: env!("BENILLA_GIT_SHORT"),
-          date: env!("BENILLA_GIT_DATE"),
-          profile: env!("BENILLA_PROFILE"),
-          project_dir: env!("BENILLA_PROJECT_DIR"),
-          ..Default::default()
-          });
-          }
-          ''')
-          
-          # Add the native touch overlay to the Survivors mode.
-          Path('crates/benilla-app/src/survivors/touch.rs').write_text(r'''//! On-screen controls for iPhone. The existing menu and level-up cards remain touchable.
-          
-          use bevy::prelude::*;
-          use super::Phase;
-          
-          #[derive(Component)]
-          struct TouchRoot;
-          
-          #[derive(Component, Clone, Copy)]
-          enum TouchAction { Up, Down, Left, Right, Jump, Mobility, Pause }
-          
-          #[derive(Resource, Default)]
-          pub(super) struct TouchControls {
-          pub(super) up: bool,
-          pub(super) down: bool,
-          pub(super) left: bool,
-          pub(super) right: bool,
-          pub(super) jump_just_pressed: bool,
-          pub(super) mobility_just_pressed: bool,
-          pub(super) pause_just_pressed: bool,
-          }
-          
-          macro_rules! touch_button {
-          ($parent:expr, $action:ident, $label:expr, $size:expr) => {{
-          $parent.spawn((
-            TouchAction::$action,
-            Button,
-            Interaction::default(),
-            Node {
-                width: Val::Px($size), height: Val::Px($size),
-                align_items: AlignItems::Center, justify_content: JustifyContent::Center,
-                border: UiRect::all(Val::Px(1.5)),
-                border_radius: BorderRadius::all(Val::Px($size / 2.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.045, 0.055, 0.075, 0.68)),
-            BorderColor::all(Color::srgba(0.90, 0.78, 0.52, 0.90)),
-          )).with_children(|button| {
-            button.spawn((Text::new($label), TextFont { font_size: $size * 0.22, ..default() }, TextColor(Color::WHITE)));
-          });
-          }};
-          }
-          
-          pub(super) fn setup_touch_controls(mut commands: Commands) {
-          #[cfg(target_os = "ios")]
-          commands.spawn((
-          TouchRoot,
-          Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
-          GlobalZIndex(600), Visibility::Hidden, bevy::ui::FocusPolicy::Pass,
-          )).with_children(|root| {
-          root.spawn((
-            Node { position_type: PositionType::Absolute, left: Val::Px(22.0), bottom: Val::Px(18.0),
-                width: Val::Px(172.0), height: Val::Px(186.0), flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center, justify_content: JustifyContent::SpaceBetween,
-                row_gap: Val::Px(5.0), ..default() },
-            bevy::ui::FocusPolicy::Pass,
-          )).with_children(|pad| {
-            pad.spawn((Node { width: Val::Percent(100.0), justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center, ..default() }, bevy::ui::FocusPolicy::Pass))
-                .with_children(|row| touch_button!(row, Up, "W", 54.0));
-            pad.spawn((Node { width: Val::Percent(100.0), flex_direction: FlexDirection::Row,
-                justify_content: JustifyContent::SpaceBetween, align_items: AlignItems::Center, ..default() },
-                bevy::ui::FocusPolicy::Pass)).with_children(|row| {
-                    touch_button!(row, Left, "A", 54.0);
-                    touch_button!(row, Right, "D", 54.0);
-                });
-            pad.spawn((Node { width: Val::Percent(100.0), justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center, ..default() }, bevy::ui::FocusPolicy::Pass))
-                .with_children(|row| touch_button!(row, Down, "S", 54.0));
-          });
-          root.spawn((Node { position_type: PositionType::Absolute, right: Val::Px(22.0), bottom: Val::Px(30.0),
-            flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(12.0), ..default() },
-            bevy::ui::FocusPolicy::Pass)).with_children(|actions| {
-                touch_button!(actions, Jump, "JUMP", 66.0);
-                touch_button!(actions, Mobility, "ABILITY", 66.0);
-            });
-          root.spawn((Node { position_type: PositionType::Absolute, right: Val::Px(22.0), top: Val::Px(18.0), ..default() },
-            bevy::ui::FocusPolicy::Pass)).with_children(|pause| touch_button!(pause, Pause, "II", 48.0));
-          });
-          }
-          
-          pub(super) fn collect_controls(
-          buttons: Query<(&TouchAction, &Interaction)>,
-          mut controls: ResMut<TouchControls>,
-          mut prior: Local<[bool; 3]>,
-          ) {
-          let mut pressed = [false; 7];
-          for (action, interaction) in &buttons {
-          if *interaction != Interaction::Pressed { continue; }
-          let i = match action {
-            TouchAction::Up => 0, TouchAction::Down => 1, TouchAction::Left => 2,
-            TouchAction::Right => 3, TouchAction::Jump => 4, TouchAction::Mobility => 5,
-            TouchAction::Pause => 6,
-          };
-          pressed[i] = true;
-          }
-          controls.up = pressed[0]; controls.down = pressed[1];
-          controls.left = pressed[2]; controls.right = pressed[3];
-          controls.jump_just_pressed = pressed[4] && !prior[0];
-          controls.mobility_just_pressed = pressed[5] && !prior[1];
-          controls.pause_just_pressed = pressed[6] && !prior[2];
-          prior[0] = pressed[4]; prior[1] = pressed[5]; prior[2] = pressed[6];
-          }
-          
-          pub(super) fn sync_visibility(phase: Res<State<Phase>>, mut roots: Query<&mut Visibility, With<TouchRoot>>) {
-          let show = matches!(*phase.get(), Phase::Playing | Phase::Paused);
-          for mut visibility in &mut roots { *visibility = if show { Visibility::Inherited } else { Visibility::Hidden }; }
-          }
-          
-          pub(super) fn toggle_pause(controls: Res<TouchControls>, phase: Res<State<Phase>>, mut next: ResMut<NextState<Phase>>) {
-          if !controls.pause_just_pressed { return; }
-          match *phase.get() { Phase::Playing => next.set(Phase::Paused), Phase::Paused => next.set(Phase::Playing), _ => {} }
-          }
-          ''')
-          p = Path('crates/benilla-app/src/survivors/hero.rs')
-          s = p.read_text()
-          if 'touch: Res<super::touch::TouchControls>' not in s:
-              old = 'pub(super) fn drive_hero(\n    time: Res<Time>,\n    keys: Res<ButtonInput<KeyCode>>,\n    phase: Res<State<Phase>>'
-              new = 'pub(super) fn drive_hero(\n    time: Res<Time>,\n    keys: Res<ButtonInput<KeyCode>>,\n    touch: Res<super::touch::TouchControls>,\n    phase: Res<State<Phase>>'
-              if old not in s: raise SystemExit('Could not patch hero::drive_hero parameters')
-              s = s.replace(old, new, 1)
-              for old_key, new_key in [
-                  ('if keys.any_pressed([KeyCode::KeyW, KeyCode::ArrowUp]) {', 'if touch.up || keys.any_pressed([KeyCode::KeyW, KeyCode::ArrowUp]) {'),
-                  ('if keys.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]) {', 'if touch.down || keys.any_pressed([KeyCode::KeyS, KeyCode::ArrowDown]) {'),
-                  ('if keys.any_pressed([KeyCode::KeyA, KeyCode::ArrowLeft]) {', 'if touch.left || keys.any_pressed([KeyCode::KeyA, KeyCode::ArrowLeft]) {'),
-                  ('if keys.any_pressed([KeyCode::KeyD, KeyCode::ArrowRight]) {', 'if touch.right || keys.any_pressed([KeyCode::KeyD, KeyCode::ArrowRight]) {'),
-                  ('if playing && keys.just_pressed(KeyCode::Space) && hm.vy == 0.0 && hm.air == 0.0 {', 'if playing && (keys.just_pressed(KeyCode::Space) || touch.jump_just_pressed) && hm.vy == 0.0 && hm.air == 0.0 {'),
-              ]:
-                  if old_key not in s: raise SystemExit(f'Could not patch hero input: {old_key}')
-                  s = s.replace(old_key, new_key, 1)
-              p.write_text(s)
-          
-          p = Path('crates/benilla-app/src/survivors/mobility.rs')
-          s = p.read_text()
-          if 'touch: Res<super::touch::TouchControls>' not in s:
-              old = 'pub(super) fn cast_mobility(\n    time: Res<Time>,\n    keys: Res<ButtonInput<KeyCode>>,\n    phase: Res<State<Phase>>'
-              new = 'pub(super) fn cast_mobility(\n    time: Res<Time>,\n    keys: Res<ButtonInput<KeyCode>>,\n    touch: Res<super::touch::TouchControls>,\n    phase: Res<State<Phase>>'
-              if old not in s: raise SystemExit('Could not patch cast_mobility parameters')
-              s = s.replace(old, new, 1)
-              old = '|| !keys.just_pressed(KEY) {'
-              if old not in s: raise SystemExit('Could not patch mobility key check')
-              s = s.replace(old, '|| !(keys.just_pressed(KEY) || touch.mobility_just_pressed) {', 1)
-              p.write_text(s)
-          
-          p = Path('crates/benilla-app/src/survivors/mod.rs')
-          s = p.read_text()
-          if 'mod touch;' not in s:
-              if 'mod units;\n' not in s: raise SystemExit('Could not add touch module declaration')
-              s = s.replace('mod units;\n', 'mod units;\nmod touch;\n', 1)
-          if 'init_resource::<touch::TouchControls>()' not in s:
-              old = '.init_resource::<hero::CamRig>()'
-              if old not in s: raise SystemExit('Could not register touch resource')
-              s = s.replace(old, old + '\n            .init_resource::<touch::TouchControls>()', 1)
-          if 'touch::setup_touch_controls' not in s:
-              old = '.add_systems(Startup, hud::setup_hud)'
-              if old not in s: raise SystemExit('Could not register touch UI startup')
-              s = s.replace(old, old + '\n            .add_systems(Startup, touch::setup_touch_controls)', 1)
-          if 'touch::collect_controls' not in s:
-              old = '(\n                    hero::aim_cursor,\n                    mobility::cast_mobility,'
-              new = '(\n                    touch::collect_controls,\n                    hero::aim_cursor,\n                    mobility::cast_mobility,'
-              if old not in s: raise SystemExit('Could not add touch input system')
-              s = s.replace(old, new, 1)
-          if 'touch::sync_visibility' not in s:
-              old = '                    hud::show_panels,\n                )'
-              new = '                    hud::show_panels,\n                    touch::sync_visibility,\n                )'
-              if old not in s: raise SystemExit('Could not add touch visibility system')
-              s = s.replace(old, new, 1)
-          if 'touch::toggle_pause' not in s:
-              old = '        if let Some(auto) = auto::from_env() {'
-              if old not in s: raise SystemExit('Could not register mobile pause system')
-              s = s.replace(old, '        app.add_systems(Update, touch::toggle_pause.after(hud::keys));\n        if let Some(auto) = auto::from_env() {', 1)
-          p.write_text(s)
-          
-          # Xcode host: UIKit starts first, then Bevy/winit creates its window.
-          ios = Path('ios')
-          ios.mkdir(exist_ok=True)
-          (ios / 'AppDelegate.swift').write_text(r'''import UIKit
-          
-          @_silgen_name("start_winit_app")
-          private func start_winit_app()
-          
-          @main
-          final class AppDelegate: UIResponder, UIApplicationDelegate {
-          func application(
-          _ application: UIApplication,
-          didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
-          ) -> Bool {
-          DispatchQueue.main.async { start_winit_app() }
-          return true
-          }
-          
-          func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
-          return .landscape
-          }
-          }
-          ''')
-          (ios / 'Info.plist').write_text(r'''<?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict>
-          <key>CFBundleDevelopmentRegion</key><string>en</string>
-          <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
-          <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-          <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-          <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
-          <key>CFBundlePackageType</key><string>APPL</string>
-          <key>CFBundleShortVersionString</key><string>0.2.0</string>
-          <key>CFBundleVersion</key><string>1</string>
-          <key>LSRequiresIPhoneOS</key><true/>
-          <key>UIFileSharingEnabled</key><true/>
-          <key>LSSupportsOpeningDocumentsInPlace</key><true/>
-          <key>UIRequiresFullScreen</key><true/>
-          <key>UIStatusBarHidden</key><true/>
-          <key>UIViewControllerBasedStatusBarAppearance</key><false/>
-          <key>UILaunchScreen</key><dict/>
-          <key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>
-          <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
-          <key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
-          </dict></plist>
-          ''')
-          (ios / 'project.yml').write_text(r'''name: AzerothSurvivors
-          options:
-          bundleIdPrefix: com.captainxannath
-          deploymentTarget:
-          iOS: "15.0"
-          settings:
-          base:
-          IPHONEOS_DEPLOYMENT_TARGET: "15.0"
-          TARGETED_DEVICE_FAMILY: "1,2"
-          SWIFT_VERSION: "5.0"
-          targets:
-          AzerothSurvivors:
-          type: application
-          platform: iOS
-          deploymentTarget: "15.0"
-          sources:
-          - path: AppDelegate.swift
-          info:
-          path: Info.plist
-          settings:
-          base:
-          PRODUCT_BUNDLE_IDENTIFIER: com.captainxannath.azerothsurvivors
-          PRODUCT_NAME: AzerothSurvivors
-          GENERATE_INFOPLIST_FILE: NO
-          INFOPLIST_FILE: Info.plist
-          CODE_SIGNING_ALLOWED: NO
-          CODE_SIGNING_REQUIRED: NO
-          CODE_SIGN_IDENTITY: ""
-          SUPPORTED_PLATFORMS: iphoneos
-          SDKROOT: iphoneos
-          OTHER_LDFLAGS: >-
-          $(inherited)
-          $(SRCROOT)/../target/aarch64-apple-ios/release/libwarcraft_survivors_ios.a
-          -framework UIKit -framework Foundation -framework Metal -framework MetalKit
-          -framework QuartzCore -framework CoreGraphics -framework CoreText
-          -framework CoreVideo -framework CoreAudio -framework AudioToolbox
-          -framework AVFoundation -framework GameController -framework CoreMotion
-          -framework Accelerate -framework ImageIO -framework Security
-          -framework SystemConfiguration -framework CFNetwork -framework CoreFoundation
-          -framework CoreServices -lobjc -lc++ -lz -liconv -lsqlite3 -lresolv
-          ''')
-          
-          readme = Path('ios/README.md')
-          readme.write_text('''# iOS build notes\n\nThis workflow builds an unsigned arm64 iOS IPA. It deliberately does not package Blizzard MPQ data.\n\nAfter importing and signing the IPA with your sideloading tool, launch it once, then open Files → On My iPhone → Azeroth Survivors. Create a `Data` folder in the app Documents area and copy the contents of your own WoW 1.12.1 `Data` folder into it. Keep MPQ files directly inside `Data`, not one extra folder deep. Relaunch the app. The app uses the files locally and does not need them inside the IPA.\n\nUnsigned IPA files are not directly installable on iPhone: use a sideloading tool to sign it with your own Apple ID/certificate.\n''')
-          PY
-          git diff --check
+          test -f Cargo.toml
+          test -f crates/warcraft-survivors/Cargo.toml
+          test -f crates/benilla-app/src/survivors/mod.rs
+          echo "Repository files found."
+          echo "The native iOS host and touch-control integration still need to be implemented and validated before an IPA can be built."
 
-      - name: Build Rust app library for iPhone
-        shell: bash
-        run: cargo +1.98.1 build --locked --release --target aarch64-apple-ios -p warcraft-survivors --lib --no-default-features
-
-      - name: Generate Xcode project
-        shell: bash
-        run: cd ios && xcodegen generate --spec project.yml
-
-      - name: Link and bundle the iOS app
+      - name: Build Rust library
         shell: bash
         run: |
-          xcodebuild \
-            -project ios/AzerothSurvivors.xcodeproj \
-            -scheme AzerothSurvivors \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath "$GITHUB_WORKSPACE/target/xcode-derived" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            build
-          APP="$GITHUB_WORKSPACE/target/xcode-derived/Build/Products/Release-iphoneos/AzerothSurvivors.app"
-          test -d "$APP"
-          mkdir -p "$GITHUB_WORKSPACE/target/ipa/Payload"
-          cp -R "$APP" "$GITHUB_WORKSPACE/target/ipa/Payload/"
-          (cd "$GITHUB_WORKSPACE/target/ipa" && /usr/bin/zip -qry "$GITHUB_WORKSPACE/AzerothSurvivors-unsigned.ipa" Payload)
-          test -s "$GITHUB_WORKSPACE/AzerothSurvivors-unsigned.ipa"
-
-      - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: AzerothSurvivors-unsigned-IPA
-          path: AzerothSurvivors-unsigned.ipa
-          if-no-files-found: error
-          retention-days: 14
+          cargo build --locked --release \
+            --target aarch64-apple-ios \
+            -p warcraft-survivors --lib --no-default-features
