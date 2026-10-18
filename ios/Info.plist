@@ -22,11 +22,6 @@
 	<true/>
 	<key>MinimumOSVersion</key>
 	<string>15.0</string>
-	<key>UIDeviceFamily</key>
-	<array>
-		<integer>1</integer>
-		<integer>2</integer>
-	</array>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>

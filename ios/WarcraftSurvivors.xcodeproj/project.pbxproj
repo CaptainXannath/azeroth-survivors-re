@@ -50,7 +50,7 @@
 			outputPaths = ("$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "\"$SRCROOT/build_rust_app.sh\"";
+			shellScript = "bash \"$SRCROOT/build_rust_app.sh\"";
 		};
 		A00000000000000000000009 = {
 			isa = PBXNativeTarget;
