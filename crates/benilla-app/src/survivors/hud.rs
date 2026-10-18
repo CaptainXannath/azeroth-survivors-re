@@ -318,11 +318,11 @@ pub(super) fn setup_hud(
         ))
         .with_children(|root| {
             // Left virtual stick, plus Jump and the class mobility action on the right.
-            root.spawn((Node { position_type: PositionType::Absolute, left: Val::Percent(12.0), bottom: Val::Percent(15.0), width: Val::Px(132.0), height: Val::Px(132.0), margin: UiRect { left: Val::Px(-66.0), bottom: Val::Px(-66.0), ..default() }, ..default() }, BorderRadius::MAX, BackgroundColor(Color::srgba(0.08, 0.08, 0.08, 0.32)), BorderColor::all(Color::srgba(0.82, 0.72, 0.48, 0.62)))).with_children(|base| {
-                base.spawn((VirtualStickKnob, Node { position_type: PositionType::Absolute, left: Val::Px(39.0), top: Val::Px(39.0), width: Val::Px(54.0), height: Val::Px(54.0), ..default() }, BorderRadius::MAX, BackgroundColor(Color::srgba(0.82, 0.72, 0.48, 0.42))));
+            root.spawn((Node { position_type: PositionType::Absolute, left: Val::Percent(12.0), bottom: Val::Percent(15.0), width: Val::Px(132.0), height: Val::Px(132.0), margin: UiRect { left: Val::Px(-66.0), bottom: Val::Px(-66.0), ..default() }, border_radius: BorderRadius::MAX, ..default() }, BackgroundColor(Color::srgba(0.08, 0.08, 0.08, 0.32)), BorderColor::all(Color::srgba(0.82, 0.72, 0.48, 0.62)))).with_children(|base| {
+                base.spawn((VirtualStickKnob, Node { position_type: PositionType::Absolute, left: Val::Px(39.0), top: Val::Px(39.0), width: Val::Px(54.0), height: Val::Px(54.0), border_radius: BorderRadius::MAX, ..default() }, BackgroundColor(Color::srgba(0.82, 0.72, 0.48, 0.42))));
             });
             for (left, bottom, label) in [(76.0, 25.0, "F"), (89.0, 14.0, "JUMP")] {
-                root.spawn((Node { position_type: PositionType::Absolute, left: Val::Percent(left), bottom: Val::Percent(bottom), width: Val::Px(82.0), height: Val::Px(82.0), margin: UiRect { left: Val::Px(-41.0), bottom: Val::Px(-41.0), ..default() }, justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() }, BorderRadius::MAX, BackgroundColor(Color::srgba(0.08, 0.08, 0.08, 0.34)), BorderColor::all(Color::srgba(0.82, 0.72, 0.48, 0.72)))).with_children(|button| {
+                root.spawn((Node { position_type: PositionType::Absolute, left: Val::Percent(left), bottom: Val::Percent(bottom), width: Val::Px(82.0), height: Val::Px(82.0), margin: UiRect { left: Val::Px(-41.0), bottom: Val::Px(-41.0), ..default() }, justify_content: JustifyContent::Center, align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() }, BackgroundColor(Color::srgba(0.08, 0.08, 0.08, 0.34)), BorderColor::all(Color::srgba(0.82, 0.72, 0.48, 0.72)))).with_children(|button| {
                     button.spawn((Text::new(label), TextFont { font: f.clone(), font_size: if label == "F" { 28.0 } else { 15.0 }, ..default() }, TextColor(Color::srgba(1.0, 0.94, 0.78, 0.92))));
                 });
             }
