@@ -532,14 +532,33 @@ pub(super) fn menu_clicks(
     if *phase.get() != Phase::Menu {
         return;
     }
-    let Some(creatures) = creatures.as_deref() else {
-        return;
-    };
     let Some(action) = actions
         .iter()
         .find(|(e, _)| clicks.hit(*e))
         .map(|(_, a)| *a)
     else {
+        return;
+    };
+    // Zone selection and Enter World do not need character model data. Keep those controls live
+    // when the optional creature catalog failed to load; race/class selection still needs it.
+    match action {
+        MenuAction::Map(i) => {
+            if selection.map != i {
+                selection.map = i;
+                selection.version += 1;
+            }
+            save_pick(&selection);
+            return;
+        }
+        MenuAction::Enter => {
+            if start_run(&mut run, &mut selection) {
+                next.set(Phase::Playing);
+            }
+            return;
+        }
+        _ => {}
+    }
+    let Some(creatures) = creatures.as_deref() else {
         return;
     };
     let all = all_looks(creatures);
@@ -549,17 +568,7 @@ pub(super) fn menu_clicks(
         .map(|&(_, r, s)| (r, s));
     let (race, sex) = (cur.map(|c| c.0), cur.map_or(0, |c| c.1));
     match action {
-        MenuAction::Map(i) => {
-            if selection.map != i {
-                selection.map = i;
-                selection.version += 1;
-            }
-        }
-        MenuAction::Enter => {
-            if start_run(&mut run, &mut selection) {
-                next.set(Phase::Playing);
-            }
-        }
+        MenuAction::Map(_) | MenuAction::Enter => unreachable!("handled above"),
         MenuAction::Randomize => {
             let picks: Vec<(usize, usize)> = all
                 .iter()
