@@ -32,7 +32,7 @@ pub(super) struct MenuRoot;
 #[derive(Component)]
 pub(super) struct HudRoot;
 #[derive(Component)]
-struct VirtualStickKnob;
+pub(super) struct VirtualStickKnob;
 #[derive(Component)]
 pub(super) struct LevelUpRoot;
 #[derive(Component)]
