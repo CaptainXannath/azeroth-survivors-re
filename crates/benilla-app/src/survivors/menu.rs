@@ -154,7 +154,7 @@ pub(super) fn build_menu(
         if let Some(logo) = &art.logo {
             ui.spawn((
                 ImageNode::new(logo.clone()),
-                abs(1.0, 3.0, 7.0, 256.0, 128.0),
+                abs(1.0, 48.0, 32.0, 256.0, 128.0),
             ));
         }
         zone_frame(ui, &art, f);
@@ -186,7 +186,7 @@ pub(super) fn build_menu(
         // `CharSelectEnterWorldButton`, 200×60 at BOTTOM (0,30).
         ui.spawn(Node {
             position_type: PositionType::Absolute,
-            bottom: Val::Px(30.0),
+            bottom: Val::Px(48.0),
             width: Val::Percent(100.0),
             justify_content: JustifyContent::Center,
             ..default()
@@ -213,8 +213,8 @@ fn tower(ui: &mut ChildSpawnerCommands, art: &GlueArt, f: &Handle<Font>) {
     let px = Val::Px;
     ui.spawn(Node {
         position_type: PositionType::Absolute,
-        left: px(28.0),
-        top: px(74.0),
+        left: px(52.0),
+        top: px(100.0),
         width: px(206.0),
         height: px(TOWER_H),
         ..default()
@@ -412,8 +412,8 @@ fn zone_frame(ui: &mut ChildSpawnerCommands, art: &GlueArt, f: &Handle<Font>) {
 
     ui.spawn(Node {
         position_type: PositionType::Absolute,
-        right: px(5.0),
-        top: px(15.0),
+        right: px(32.0),
+        top: px(32.0),
         width: px(260.0),
         height: px(642.0),
         ..default()
