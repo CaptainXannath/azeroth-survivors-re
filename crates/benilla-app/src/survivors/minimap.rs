@@ -171,8 +171,8 @@ pub(super) fn spawn_cluster(root: &mut ChildSpawnerCommands, font: &Handle<Font>
     };
     root.spawn(Node {
         position_type: PositionType::Absolute,
-        right: Val::Px(0.0),
-        top: Val::Px(0.0),
+        right: Val::Px(40.0),
+        top: Val::Px(40.0),
         width: Val::Px(192.0),
         height: Val::Px(192.0),
         ..default()
