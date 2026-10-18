@@ -77,21 +77,64 @@ impl GlueClicks {
 /// [`Interaction`], `Pressed → Hovered` is released inside and `Pressed → None` released outside
 /// or hidden mid-press; `pushed` is the reference's state byte.
 pub(crate) fn glue_clicks(
-    interactions: Query<(Entity, &Interaction)>,
+    interactions: Query<(
+        Entity,
+        &Interaction,
+        Option<&ComputedNode>,
+        Option<&UiGlobalTransform>,
+        Option<&ComputedUiTargetCamera>,
+    )>,
+    touches: Res<Touches>,
+    window: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    cameras: Query<(Entity, &Camera)>,
     mut pushed: Local<EntityHashSet>,
     mut clicks: ResMut<GlueClicks>,
 ) {
     clicks.0.clear();
-    pushed.retain(|&e| match interactions.get(e) {
-        Ok((_, Interaction::Pressed)) => true, // still held
-        Ok((_, Interaction::Hovered)) => {
-            clicks.0.insert(e); // released inside: the click
-            false
+
+    // Bevy UI loses the release position when a touch ends. Hit-test the lift point against the
+    // button that took the press so iOS taps still produce the reference glue click.
+    let mut touch_clicks = EntityHashSet::default();
+    if let Ok(window) = window.single() {
+        for touch in touches.iter_just_released() {
+            for &entity in pushed.iter() {
+                let Ok((_, _, Some(node), Some(transform), Some(target))) = interactions.get(entity) else {
+                    continue;
+                };
+                let Some(camera_entity) = target.get() else {
+                    continue;
+                };
+                let Ok((_, camera)) = cameras.get(camera_entity) else {
+                    continue;
+                };
+                let viewport_min = camera
+                    .physical_viewport_rect()
+                    .map(|rect| rect.min.as_vec2())
+                    .unwrap_or_default();
+                let point = touch.position() * window.scale_factor() - viewport_min;
+                if node.contains_point(*transform, point) {
+                    touch_clicks.insert(entity);
+                }
+            }
         }
-        // Released outside, hidden mid-press, or despawned: the press is dropped.
-        _ => false,
+    }
+
+    pushed.retain(|&e| {
+        if touch_clicks.contains(&e) {
+            clicks.0.insert(e);
+            return false;
+        }
+        match interactions.get(e) {
+            Ok((_, Interaction::Pressed, ..)) => true, // still held
+            Ok((_, Interaction::Hovered, ..)) => {
+                clicks.0.insert(e); // released inside: the mouse click
+                false
+            }
+            // Released outside, hidden mid-press, or despawned: the press is dropped.
+            _ => false,
+        }
     });
-    for (e, interaction) in &interactions {
+    for (e, interaction, ..) in &interactions {
         if *interaction == Interaction::Pressed {
             pushed.insert(e);
         }
