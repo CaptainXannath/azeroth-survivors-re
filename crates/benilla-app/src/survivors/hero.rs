@@ -193,6 +193,7 @@ pub(super) fn drive_hero(
     selection: Res<Selection>,
     rig: Res<CamRig>,
     aim: Res<AimPoint>,
+    touch: Res<TouchControls>,
     world: WorldPoint,
     auto: Option<Res<super::auto::Auto>>,
     mut player: ResMut<crate::player::Player>,
