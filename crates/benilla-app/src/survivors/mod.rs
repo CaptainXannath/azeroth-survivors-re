@@ -94,6 +94,7 @@ impl Plugin for SurvivorsPlugin {
                     hero::follow_map,
                     hud::menu_preview,
                     hud::buttons,
+                    hud::touch_visuals,
                     hud::keys,
                     hud::refresh_menu,
                     menu::restore_pick,

@@ -351,6 +351,8 @@ pub(crate) fn on_cvar(ev: On<crate::cvars::CvarChanged>, mut sound: ResMut<Sound
 impl Plugin for SoundPlugin {
     fn build(&self, app: &mut App) {
         net::register(app);
+        #[cfg(target_os = "ios")]
+        if let Err(error) = ios_audio::activate() { warn!("could not activate iOS audio session: {error:#}"); }
         app.add_observer(on_cvar);
         // `$WOW_NOSOUND` (a silent unattended run) and `$WOW_CAPTURE` open no device at all, so
         // they never hold the audio hardware against a session someone is listening to.

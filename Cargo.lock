@@ -617,6 +617,7 @@ dependencies = [
  "num-bigint",
  "objc2 0.5.2",
  "objc2-app-kit 0.2.2",
+ "objc2-avf-audio",
  "objc2-core-audio",
  "objc2-core-audio-types",
  "objc2-foundation 0.2.2",

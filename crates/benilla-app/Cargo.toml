@@ -58,6 +58,9 @@ arboard = "3"
 raw-window-handle = "0.6"
 smithay-clipboard = "0.7"
 
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-avf-audio = { version = "0.3", default-features = false, features = ["std", "AVAudioSession", "AVAudioSessionTypes"] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 coreaudio-rs = { version = "0.13", default-features = false, features = ["audio_unit", "core_audio"] }
 objc2-core-audio = { version = "0.3", default-features = false, features = ["std", "AudioHardware"] }
