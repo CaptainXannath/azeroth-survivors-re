@@ -38,6 +38,8 @@ pub(super) struct LevelUpRoot;
 #[derive(Component)]
 pub(super) struct PauseRoot;
 #[derive(Component)]
+struct PauseButton;
+#[derive(Component)]
 pub(super) struct OverRoot;
 #[derive(Component)]
 pub(super) struct XpBar;
@@ -164,6 +166,7 @@ pub(super) struct TipBody;
 
 #[derive(Component, Clone, Copy, PartialEq)]
 pub(super) enum UiAction {
+    Pause,
     Resume,
     MainMenu,
     Quit,
@@ -596,6 +599,27 @@ pub(super) fn setup_hud(
                         line.spawn((LevelText, text(f, "Level 1", 14.0, GOLD)));
                         line.spawn((KillText, text(f, "Kills 0", 14.0, Color::WHITE)));
                     });
+                });
+                // A touch-accessible pause control, below the clock and clear of the notch area.
+                root.spawn((
+                    PauseButton,
+                    button(UiAction::Pause, BUTTON),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Percent(50.0),
+                        top: Val::Vh(13.0),
+                        width: Val::Vh(8.0),
+                        height: Val::Vh(6.5),
+                        margin: UiRect::left(Val::Vh(-4.0)),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        border: UiRect::all(Val::Px(2.0)),
+                        border_radius: BorderRadius::all(Val::Px(6.0)),
+                        ..default()
+                    },
+                ))
+                .with_children(|pause| {
+                    pause.spawn(text(f, "II", 22.0, Color::WHITE));
                 });
                 // The minimap cluster's column.
                 row.spawn(Node {
@@ -1124,6 +1148,7 @@ pub(super) fn buttons(
             Interaction::Pressed => {
                 bg.0 = BUTTON_HOT;
                 match (*action, *phase.get()) {
+                    (UiAction::Pause, Phase::Playing) => next.set(Phase::Paused),
                     (UiAction::Resume, Phase::Paused) => next.set(Phase::Playing),
                     (UiAction::MainMenu, Phase::Paused | Phase::GameOver) => next.set(Phase::Menu),
                     (UiAction::Quit, Phase::Paused | Phase::GameOver) => {
@@ -2274,6 +2299,7 @@ pub(super) fn icon_tooltip(
 #[allow(clippy::type_complexity)]
 pub(super) fn show_panels(
     phase: Res<State<Phase>>,
+    mut pause_button: Query<&mut Visibility, With<PauseButton>>,
     mut roots: ParamSet<(
         Query<(&mut Visibility, &mut Node), With<MenuRoot>>,
         Query<(&mut Visibility, &mut Node), With<HudRoot>>,
@@ -2312,5 +2338,12 @@ pub(super) fn show_panels(
     }
     for root in &mut roots.p4() {
         set(root, p == Phase::GameOver);
+    }
+    for mut visibility in &mut pause_button {
+        *visibility = if p == Phase::Playing {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
     }
 }
