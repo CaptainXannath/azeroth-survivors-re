@@ -38,7 +38,7 @@ pub(super) struct LevelUpRoot;
 #[derive(Component)]
 pub(super) struct PauseRoot;
 #[derive(Component)]
-struct PauseButton;
+pub(super) struct PauseButton;
 #[derive(Component)]
 pub(super) struct OverRoot;
 #[derive(Component)]
@@ -601,7 +601,7 @@ pub(super) fn setup_hud(
                     });
                 });
                 // A touch-accessible pause control, below the clock and clear of the notch area.
-                root.spawn((
+                row.spawn((
                     PauseButton,
                     button(UiAction::Pause, BUTTON),
                     Node {
