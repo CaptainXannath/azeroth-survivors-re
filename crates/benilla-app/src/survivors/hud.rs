@@ -551,7 +551,7 @@ pub(super) fn setup_hud(
             });
             root.spawn(Node {
                 width: Val::Percent(100.0),
-                padding: UiRect::all(Val::Vh(1.4)),
+                padding: UiRect::new(Val::Px(44.0), Val::Px(44.0), Val::Px(42.0), Val::Vh(1.4)),
                 justify_content: JustifyContent::SpaceBetween,
                 align_items: AlignItems::FlexStart,
                 ..default()
