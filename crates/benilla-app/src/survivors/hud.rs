@@ -6,7 +6,6 @@ use std::collections::HashMap;
 use benilla_ui::script::nameplate;
 use benilla_world::view::WorldCamera;
 use bevy::prelude::*;
-use bevy::ui::FocusPolicy;
 use bevy::render::render_resource::AsBindGroup;
 use bevy::shader::ShaderRef;
 use bevy::ui_render::ui_material::{MaterialNode, UiMaterial};
@@ -319,12 +318,12 @@ pub(super) fn setup_hud(
         ))
         .with_children(|root| {
             // Left virtual stick, plus Jump and the class mobility action on the right.
-            root.spawn((Node { position_type: PositionType::Absolute, left: Val::Percent(12.0), bottom: Val::Percent(15.0), width: Val::Px(132.0), height: Val::Px(132.0), margin: UiRect { left: Val::Px(-66.0), bottom: Val::Px(-66.0), ..default() }, ..default() }, BorderRadius::MAX, BackgroundColor(Color::srgba(0.08, 0.08, 0.08, 0.32)), BorderColor::all(Color::srgba(0.82, 0.72, 0.48, 0.62)), FocusPolicy::Pass)).with_children(|base| {
-                base.spawn((VirtualStickKnob, Node { position_type: PositionType::Absolute, left: Val::Px(39.0), top: Val::Px(39.0), width: Val::Px(54.0), height: Val::Px(54.0), ..default() }, BorderRadius::MAX, BackgroundColor(Color::srgba(0.82, 0.72, 0.48, 0.42)), FocusPolicy::Pass));
+            root.spawn((Node { position_type: PositionType::Absolute, left: Val::Percent(12.0), bottom: Val::Percent(15.0), width: Val::Px(132.0), height: Val::Px(132.0), margin: UiRect { left: Val::Px(-66.0), bottom: Val::Px(-66.0), ..default() }, ..default() }, BorderRadius::MAX, BackgroundColor(Color::srgba(0.08, 0.08, 0.08, 0.32)), BorderColor::all(Color::srgba(0.82, 0.72, 0.48, 0.62)))).with_children(|base| {
+                base.spawn((VirtualStickKnob, Node { position_type: PositionType::Absolute, left: Val::Px(39.0), top: Val::Px(39.0), width: Val::Px(54.0), height: Val::Px(54.0), ..default() }, BorderRadius::MAX, BackgroundColor(Color::srgba(0.82, 0.72, 0.48, 0.42))));
             });
             for (left, bottom, label) in [(76.0, 25.0, "F"), (89.0, 14.0, "JUMP")] {
-                root.spawn((Node { position_type: PositionType::Absolute, left: Val::Percent(left), bottom: Val::Percent(bottom), width: Val::Px(82.0), height: Val::Px(82.0), margin: UiRect { left: Val::Px(-41.0), bottom: Val::Px(-41.0), ..default() }, justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() }, BorderRadius::MAX, BackgroundColor(Color::srgba(0.08, 0.08, 0.08, 0.34)), BorderColor::all(Color::srgba(0.82, 0.72, 0.48, 0.72)), FocusPolicy::Pass)).with_children(|button| {
-                    button.spawn((Text::new(label), TextFont { font: f.clone(), font_size: if label == "F" { 28.0 } else { 15.0 }, ..default() }, TextColor(Color::srgba(1.0, 0.94, 0.78, 0.92)), FocusPolicy::Pass));
+                root.spawn((Node { position_type: PositionType::Absolute, left: Val::Percent(left), bottom: Val::Percent(bottom), width: Val::Px(82.0), height: Val::Px(82.0), margin: UiRect { left: Val::Px(-41.0), bottom: Val::Px(-41.0), ..default() }, justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() }, BorderRadius::MAX, BackgroundColor(Color::srgba(0.08, 0.08, 0.08, 0.34)), BorderColor::all(Color::srgba(0.82, 0.72, 0.48, 0.72)))).with_children(|button| {
+                    button.spawn((Text::new(label), TextFont { font: f.clone(), font_size: if label == "F" { 28.0 } else { 15.0 }, ..default() }, TextColor(Color::srgba(1.0, 0.94, 0.78, 0.92))));
                 });
             }
             // `MainMenuExpBar`, 1024×13 at the bottom centre. The reference stacks it on the
@@ -636,8 +635,7 @@ pub(super) fn setup_hud(
             height: Val::Percent(100.0),
             ..default()
         },
-        GlobalZIndex(410),
-        bevy::ui::FocusPolicy::Pass,
+        GlobalZIndex(410)
     ));
 
     // --- Level up. ---
@@ -666,7 +664,6 @@ pub(super) fn setup_hud(
             GlobalZIndex(420),
             Visibility::Hidden,
             // The build's icons stay hoverable under the cards.
-            bevy::ui::FocusPolicy::Pass,
         ))
         .with_children(|root| {
             // The slow golden burst behind everything.
@@ -713,8 +710,7 @@ pub(super) fn setup_hud(
                         ],
                     )),
                 ]),
-                UiTransform::default(),
-                bevy::ui::FocusPolicy::Pass,
+                UiTransform::default()
             ));
             root.spawn(centered(f, "LEVEL UP", 52.0, GOLD));
             root.spawn((
@@ -749,8 +745,7 @@ pub(super) fn setup_hud(
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
             GlobalZIndex(430),
-            Visibility::Hidden,
-            bevy::ui::FocusPolicy::Pass,
+            Visibility::Hidden
         ))
         .with_children(|root| {
             root.spawn(centered(f, "Paused", 46.0, GOLD));
@@ -2047,8 +2042,7 @@ fn spawn_tooltip(
             ..default()
         },
         GlobalZIndex(1000),
-        Visibility::Hidden,
-        bevy::ui::FocusPolicy::Pass,
+        Visibility::Hidden
     ));
     if bg.is_none() || edges.is_none() {
         root.insert(BackgroundColor(TIP_FILL.with_alpha(0.95)));
