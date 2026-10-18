@@ -10,6 +10,7 @@ pub(super) struct TouchControls {
     pub(super) jump_pressed: bool,
     pub(super) mobility_pressed: bool,
     pub(super) stick_offset: Vec2,
+    stick_touch: Option<u64>,
 }
 
 pub(super) fn read_touches(
@@ -33,24 +34,40 @@ pub(super) fn read_touches(
 
     let size = window.size();
     let stick_center = Vec2::new(size.x * 0.12, size.y * 0.85);
-    const STICK_RADIUS: f32 = 58.0;
+    let ui_scale = (size.y / 720.0).clamp(0.8, 1.5);
+    let stick_radius = 82.0 * ui_scale;
 
-    if let Some(touch) = touches
-        .iter()
-        .filter(|touch| (touch.position() - stick_center).length() <= 100.0)
-        .min_by(|a, b| {
-            (a.position() - stick_center)
-                .length_squared()
-                .total_cmp(&(b.position() - stick_center).length_squared())
-        })
-    {
+    // Claim one left-side finger on touch-down and keep it through the gesture. The wide zone
+    // avoids requiring a precise initial tap on the joystick artwork.
+    if controls.stick_touch.is_some_and(|id| {
+        touches.just_released(id) || touches.just_canceled(id) || touches.get_pressed(id).is_none()
+    }) {
+        controls.stick_touch = None;
+    }
+    if controls.stick_touch.is_none() {
+        controls.stick_touch = touches
+            .iter_just_pressed()
+            .filter(|touch| {
+                let p = touch.position();
+                p.x <= size.x * 0.48 && p.y >= size.y * 0.30
+            })
+            .min_by(|a, b| {
+                (a.position() - stick_center)
+                    .length_squared()
+                    .total_cmp(&(b.position() - stick_center).length_squared())
+            })
+            .map(|touch| touch.id());
+    }
+
+    if let Some(touch) = controls.stick_touch.and_then(|id| touches.get_pressed(id)) {
         let delta = touch.position() - stick_center;
         let length = delta.length();
 
-        if length > 10.0 {
-            let magnitude = ((length - 10.0) / (STICK_RADIUS - 10.0)).clamp(0.0, 1.0);
+        if length > 12.0 * ui_scale {
+            let magnitude =
+                ((length - 12.0 * ui_scale) / (stick_radius - 12.0 * ui_scale)).clamp(0.0, 1.0);
             controls.movement = delta.normalize() * magnitude;
-            controls.stick_offset = controls.movement * 38.0;
+            controls.stick_offset = controls.movement * 48.0 * ui_scale;
         }
     }
 
@@ -59,7 +76,7 @@ pub(super) fn read_touches(
 
     for touch in touches.iter_just_pressed() {
         let position = touch.position();
-        controls.jump_pressed |= position.distance(jump_center) <= 58.0;
-        controls.mobility_pressed |= position.distance(mobility_center) <= 58.0;
+        controls.jump_pressed |= position.distance(jump_center) <= 72.0 * ui_scale;
+        controls.mobility_pressed |= position.distance(mobility_center) <= 72.0 * ui_scale;
     }
 }

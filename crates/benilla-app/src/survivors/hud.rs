@@ -13,8 +13,8 @@ use bevy::window::PrimaryWindow;
 
 use super::data::{self, AbilityDef, Effect, Kind, PassiveDef, Stat};
 use super::hero::{self, Hero};
-use super::touch_controls::TouchControls;
 use super::minimap::{self, MiniMap};
+use super::touch_controls::TouchControls;
 use super::{Owned, Phase, Rng, Run, Selection, Stats};
 
 const GOLD: Color = Color::srgb(1.0, 0.82, 0.0);
@@ -263,8 +263,8 @@ fn edged_button(action: UiAction, base: Color, edge: Color) -> impl Bundle {
 fn icon(spell: u32, size: f32) -> impl Bundle {
     (
         Node {
-            width: Val::Px(size),
-            height: Val::Px(size),
+            width: Val::Vh(size),
+            height: Val::Vh(size),
             ..default()
         },
         ImageNode {
@@ -282,11 +282,21 @@ fn spell_name(spells: Option<&crate::ui_action::Spells>, spell: u32, fallback: &
         .unwrap_or_else(|| fallback.replace('_', " "))
 }
 
-pub(super) fn touch_visuals(controls: Res<TouchControls>, mut knob: Query<&mut Node, With<VirtualStickKnob>>) {
-    if !controls.is_changed() { return; }
+pub(super) fn touch_visuals(
+    controls: Res<TouchControls>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut knob: Query<&mut Node, With<VirtualStickKnob>>,
+) {
+    if !controls.is_changed() {
+        return;
+    }
+    let Ok(window) = windows.single() else {
+        return;
+    };
+    let knob_center = window.height() * 0.0665;
     for mut node in &mut knob {
-        node.left = Val::Px(39.0 + controls.stick_offset.x);
-        node.top = Val::Px(39.0 + controls.stick_offset.y);
+        node.left = Val::Px(knob_center + controls.stick_offset.x);
+        node.top = Val::Px(knob_center + controls.stick_offset.y);
     }
 }
 
@@ -318,12 +328,70 @@ pub(super) fn setup_hud(
         ))
         .with_children(|root| {
             // Left virtual stick, plus Jump and the class mobility action on the right.
-            root.spawn((Node { position_type: PositionType::Absolute, left: Val::Percent(12.0), bottom: Val::Percent(15.0), width: Val::Px(132.0), height: Val::Px(132.0), margin: UiRect { left: Val::Px(-66.0), bottom: Val::Px(-66.0), ..default() }, border_radius: BorderRadius::MAX, ..default() }, BackgroundColor(Color::srgba(0.08, 0.08, 0.08, 0.32)), BorderColor::all(Color::srgba(0.82, 0.72, 0.48, 0.62)))).with_children(|base| {
-                base.spawn((VirtualStickKnob, Node { position_type: PositionType::Absolute, left: Val::Px(39.0), top: Val::Px(39.0), width: Val::Px(54.0), height: Val::Px(54.0), border_radius: BorderRadius::MAX, ..default() }, BackgroundColor(Color::srgba(0.82, 0.72, 0.48, 0.42))));
+            root.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Percent(12.0),
+                    bottom: Val::Percent(15.0),
+                    width: Val::Vh(22.8),
+                    height: Val::Vh(22.8),
+                    margin: UiRect {
+                        left: Val::Vh(-11.4),
+                        bottom: Val::Vh(-11.4),
+                        ..default()
+                    },
+                    border_radius: BorderRadius::MAX,
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.04, 0.04, 0.04, 0.58)),
+                BorderColor::all(Color::srgba(0.95, 0.82, 0.56, 0.88)),
+            ))
+            .with_children(|base| {
+                base.spawn((
+                    VirtualStickKnob,
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Vh(6.65),
+                        top: Val::Vh(6.65),
+                        width: Val::Vh(9.5),
+                        height: Val::Vh(9.5),
+                        border_radius: BorderRadius::MAX,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(0.95, 0.82, 0.56, 0.72)),
+                ));
             });
             for (left, bottom, label) in [(76.0, 25.0, "F"), (89.0, 14.0, "JUMP")] {
-                root.spawn((Node { position_type: PositionType::Absolute, left: Val::Percent(left), bottom: Val::Percent(bottom), width: Val::Px(82.0), height: Val::Px(82.0), margin: UiRect { left: Val::Px(-41.0), bottom: Val::Px(-41.0), ..default() }, justify_content: JustifyContent::Center, align_items: AlignItems::Center, border_radius: BorderRadius::MAX, ..default() }, BackgroundColor(Color::srgba(0.08, 0.08, 0.08, 0.34)), BorderColor::all(Color::srgba(0.82, 0.72, 0.48, 0.72)))).with_children(|button| {
-                    button.spawn((Text::new(label), TextFont { font: f.clone(), font_size: if label == "F" { 28.0 } else { 15.0 }, ..default() }, TextColor(Color::srgba(1.0, 0.94, 0.78, 0.92))));
+                root.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Percent(left),
+                        bottom: Val::Percent(bottom),
+                        width: Val::Vh(15.3),
+                        height: Val::Vh(15.3),
+                        margin: UiRect {
+                            left: Val::Vh(-7.65),
+                            bottom: Val::Vh(-7.65),
+                            ..default()
+                        },
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        border_radius: BorderRadius::MAX,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(0.04, 0.04, 0.04, 0.62)),
+                    BorderColor::all(Color::srgba(0.95, 0.82, 0.56, 0.92)),
+                ))
+                .with_children(|button| {
+                    button.spawn((
+                        Text::new(label),
+                        TextFont {
+                            font: f.clone(),
+                            font_size: if label == "F" { 34.0 } else { 19.0 },
+                            ..default()
+                        },
+                        TextColor(Color::srgba(1.0, 0.96, 0.84, 1.0)),
+                    ));
                 });
             }
             // `MainMenuExpBar`, 1024×13 at the bottom centre. The reference stacks it on the
@@ -335,9 +403,9 @@ pub(super) fn setup_hud(
                     position_type: PositionType::Absolute,
                     left: Val::Percent(50.0),
                     bottom: Val::Px(0.0),
-                    margin: UiRect::left(Val::Px(-512.0)),
-                    width: Val::Px(1024.0),
-                    height: Val::Px(13.0),
+                    margin: UiRect::left(Val::Vw(-40.0)),
+                    width: Val::Vw(80.0),
+                    height: Val::Vh(1.8),
                     ..default()
                 },
                 BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
@@ -483,7 +551,7 @@ pub(super) fn setup_hud(
             });
             root.spawn(Node {
                 width: Val::Percent(100.0),
-                padding: UiRect::all(Val::Px(10.0)),
+                padding: UiRect::all(Val::Vh(1.4)),
                 justify_content: JustifyContent::SpaceBetween,
                 align_items: AlignItems::FlexStart,
                 ..default()
@@ -635,7 +703,7 @@ pub(super) fn setup_hud(
             height: Val::Percent(100.0),
             ..default()
         },
-        GlobalZIndex(410)
+        GlobalZIndex(410),
     ));
 
     // --- Level up. ---
@@ -710,7 +778,7 @@ pub(super) fn setup_hud(
                         ],
                     )),
                 ]),
-                UiTransform::default()
+                UiTransform::default(),
             ));
             root.spawn(centered(f, "LEVEL UP", 52.0, GOLD));
             root.spawn((
@@ -745,7 +813,7 @@ pub(super) fn setup_hud(
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
             GlobalZIndex(430),
-            Visibility::Hidden
+            Visibility::Hidden,
         ))
         .with_children(|root| {
             root.spawn(centered(f, "Paused", 46.0, GOLD));
@@ -1332,13 +1400,13 @@ pub(super) fn refresh_hud(
                 run.abilities
                     .iter()
                     .enumerate()
-                    .map(|(i, o)| (o.def.spell, o.level, 40.0, TipFor::Ability(i)))
+                    .map(|(i, o)| (o.def.spell, o.level, 7.8, TipFor::Ability(i)))
                     .collect()
             } else {
                 run.passives
                     .iter()
                     .enumerate()
-                    .map(|(i, (p, l))| (p.spell, *l, 30.0, TipFor::Passive(i)))
+                    .map(|(i, (p, l))| (p.spell, *l, 6.7, TipFor::Passive(i)))
                     .collect()
             };
             for (spell, level, size, tip) in entries {
@@ -1348,17 +1416,18 @@ pub(super) fn refresh_hud(
                 };
                 row.spawn((
                     Node {
-                        width: Val::Px(size),
-                        height: Val::Px(size),
-                        border: UiRect::all(Val::Px(1.0)),
+                        width: Val::Vh(size),
+                        height: Val::Vh(size),
+                        border: UiRect::all(Val::Vh(0.28)),
                         ..default()
                     },
                     BorderColor::all(EDGE),
+                    BackgroundColor(Color::srgba(0.02, 0.02, 0.02, 0.82)),
                     Interaction::default(),
                     tip,
                 ))
                 .with_children(|slot| {
-                    slot.spawn(icon(spell, size - 2.0));
+                    slot.spawn(icon(spell, size - 0.28));
                     // The cooldown sweep sits over the icon, under the level text.
                     if let Some(i) = ability {
                         let handle = sweeps.add(SweepUiMaterial { sweep: 0.0 });
@@ -1380,7 +1449,7 @@ pub(super) fn refresh_hud(
                         ..default()
                     })
                     .with_children(|n| {
-                        n.spawn(text(f, level.to_string(), 12.0, Color::WHITE));
+                        n.spawn(text(f, level.to_string(), 15.0, Color::WHITE));
                     });
                 });
             }
@@ -2042,7 +2111,7 @@ fn spawn_tooltip(
             ..default()
         },
         GlobalZIndex(1000),
-        Visibility::Hidden
+        Visibility::Hidden,
     ));
     if bg.is_none() || edges.is_none() {
         root.insert(BackgroundColor(TIP_FILL.with_alpha(0.95)));
