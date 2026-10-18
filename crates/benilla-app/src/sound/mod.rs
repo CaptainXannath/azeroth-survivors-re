@@ -22,6 +22,8 @@ mod greeting;
 pub(crate) mod interior;
 mod kit;
 mod limiter;
+#[cfg(target_os = "ios")]
+mod ios_audio;
 mod liquid_loop;
 mod math;
 mod message;

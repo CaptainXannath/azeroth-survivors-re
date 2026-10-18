@@ -7,6 +7,7 @@ use super::enemies::Enemy;
 use super::hero::{self, Hero};
 use super::units::{flat, Fx};
 use super::{Phase, Run};
+use super::touch_controls::TouchControls;
 use benilla_world::world_point::WorldPoint;
 
 pub(super) const LEARN_LEVEL: u32 = 5;
@@ -174,6 +175,7 @@ impl Run {
 pub(super) fn cast_mobility(
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
+    touch: Res<TouchControls>,
     phase: Res<State<Phase>>,
     mut run: ResMut<Run>,
     world: WorldPoint,

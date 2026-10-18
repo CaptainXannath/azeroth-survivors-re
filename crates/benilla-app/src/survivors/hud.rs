@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use benilla_ui::script::nameplate;
 use benilla_world::view::WorldCamera;
 use bevy::prelude::*;
+use bevy::ui::FocusPolicy;
 use bevy::render::render_resource::AsBindGroup;
 use bevy::shader::ShaderRef;
 use bevy::ui_render::ui_material::{MaterialNode, UiMaterial};
@@ -13,6 +14,7 @@ use bevy::window::PrimaryWindow;
 
 use super::data::{self, AbilityDef, Effect, Kind, PassiveDef, Stat};
 use super::hero::{self, Hero};
+use super::touch_controls::TouchControls;
 use super::minimap::{self, MiniMap};
 use super::{Owned, Phase, Rng, Run, Selection, Stats};
 
@@ -30,6 +32,8 @@ pub(super) const GOLD_TONE: Color = GOLD;
 pub(super) struct MenuRoot;
 #[derive(Component)]
 pub(super) struct HudRoot;
+#[derive(Component)]
+struct VirtualStickKnob;
 #[derive(Component)]
 pub(super) struct LevelUpRoot;
 #[derive(Component)]

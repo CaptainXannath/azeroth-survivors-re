@@ -15,6 +15,7 @@ mod hud;
 mod menu;
 mod minimap;
 mod mobility;
+mod touch_controls;
 mod units;
 
 use benilla_world::schedule::WorldStage;
@@ -44,6 +45,7 @@ impl Plugin for SurvivorsPlugin {
             .init_resource::<Selection>()
             .init_resource::<Run>()
             .init_resource::<hero::CamRig>()
+            .init_resource::<touch_controls::TouchControls>()
             .init_resource::<hero::AimPoint>()
             .init_resource::<abilities::PendingHits>()
             .init_resource::<enemies::Spawner>()
