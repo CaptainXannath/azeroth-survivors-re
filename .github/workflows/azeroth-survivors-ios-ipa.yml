@@ -6,6 +6,8 @@ on:
       - ios-port-experiment
     paths:
       - '.github/workflows/azeroth-survivors-ios-ipa.yml'
+      - '.github/workflows/ios-ipa.yml'
+      - 'ios/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'crates/**'
@@ -36,68 +38,24 @@ jobs:
           rustc -V
           cargo -V
           xcodebuild -version
-      - name: Build the native iOS executable
-        shell: bash
-        run: |
-          cargo build --locked --release \
-            --target aarch64-apple-ios \
-            -p warcraft-survivors \
-            --bin warcraft-survivors \
-            --no-default-features
-      - name: Assemble unsigned IPA
+      - name: Build the iOS application with Xcode and Bevy's Cargo target
         shell: bash
         run: |
           set -euxo pipefail
-          APP_NAME="WarcraftSurvivors"
-          APP_DIR="$RUNNER_TEMP/Payload/${APP_NAME}.app"
-          mkdir -p "$APP_DIR"
-          cp \
-            "target/aarch64-apple-ios/release/warcraft-survivors" \
-            "$APP_DIR/WarcraftSurvivors"
-          cat > "$APP_DIR/Info.plist" <<'PLIST'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>CFBundleDevelopmentRegion</key>
-            <string>en</string>
-            <key>CFBundleExecutable</key>
-            <string>WarcraftSurvivors</string>
-            <key>CFBundleIdentifier</key>
-            <string>com.captainxannath.warcraftsurvivors</string>
-            <key>CFBundleInfoDictionaryVersion</key>
-            <string>6.0</string>
-            <key>CFBundleName</key>
-            <string>Warcraft Survivors</string>
-            <key>CFBundlePackageType</key>
-            <string>APPL</string>
-            <key>CFBundleShortVersionString</key>
-            <string>0.2.0</string>
-            <key>CFBundleVersion</key>
-            <string>1</string>
-            <key>LSRequiresIPhoneOS</key>
-            <true/>
-            <key>MinimumOSVersion</key>
-            <string>15.0</string>
-            <key>UIDeviceFamily</key>
-            <array>
-              <integer>1</integer>
-              <integer>2</integer>
-            </array>
-            <key>UIRequiredDeviceCapabilities</key>
-            <array>
-              <string>arm64</string>
-            </array>
-            <key>UILaunchScreen</key>
-            <dict/>
-            <key>UIStatusBarHidden</key>
-            <true/>
-            <key>UIViewControllerBasedStatusBarAppearance</key>
-            <false/>
-          </dict>
-          </plist>
-          PLIST
-          plutil -lint "$APP_DIR/Info.plist"
+          xcodebuild \
+            -project ios/WarcraftSurvivors.xcodeproj \
+            -scheme WarcraftSurvivors \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/derived" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+          APP_PATH="$RUNNER_TEMP/derived/Build/Products/Release-iphoneos/WarcraftSurvivors.app"
+          test -x "$APP_PATH/WarcraftSurvivors"
+          plutil -lint "$APP_PATH/Info.plist"
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
           cd "$RUNNER_TEMP"
           /usr/bin/zip -qry \
             "$GITHUB_WORKSPACE/WarcraftSurvivors-unsigned.ipa" \

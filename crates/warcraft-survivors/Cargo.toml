@@ -14,10 +14,11 @@ dev = ["benilla-app/dev"]
 
 [lib]
 name = "warcraft_survivors_ios"
-crate-type = ["staticlib"]
+crate-type = ["lib", "cdylib"]
 path = "src/ios_lib.rs"
 
 [dependencies]
+bevy.workspace = true
 benilla-app = { path = "../benilla-app", default-features = false }
 
 [build-dependencies]

@@ -1,0 +1,132 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+		A00000000000000000000002 = {
+			isa = PBXFileReference;
+			explicitFileType = wrapper.application;
+			includeInIndex = 0;
+			path = WarcraftSurvivors.app;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		A00000000000000000000003 = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.plist.xml;
+			path = Info.plist;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000004 = {
+			isa = PBXGroup;
+			children = (A00000000000000000000003, A00000000000000000000005,);
+			path = .;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000005 = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.script.sh;
+			path = build_rust_app.sh;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000006 = {
+			isa = PBXGroup;
+			children = (A00000000000000000000004, A00000000000000000000007,);
+			sourceTree = "<group>";
+		};
+		A00000000000000000000007 = {
+			isa = PBXGroup;
+			children = (A00000000000000000000002,);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000008 = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ("$(SRCROOT)/build_rust_app.sh",);
+			name = "Build Bevy Rust application";
+			outputPaths = ("$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"$SRCROOT/build_rust_app.sh\"";
+		};
+		A00000000000000000000009 = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000013;
+			buildPhases = (A00000000000000000000008,);
+			buildRules = ();
+			dependencies = ();
+			name = WarcraftSurvivors;
+			productName = WarcraftSurvivors;
+			productReference = A00000000000000000000002;
+			productType = "com.apple.product-type.application";
+		};
+		A0000000000000000000000A = {
+			isa = PBXProject;
+			attributes = { LastUpgradeCheck = 1600; };
+			buildConfigurationList = A00000000000000000000014;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base,);
+			mainGroup = A00000000000000000000006;
+			productRefGroup = A00000000000000000000007;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (A00000000000000000000009,);
+		};
+		A0000000000000000000000B = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.captainxannath.warcraftsurvivors;
+				PRODUCT_NAME = WarcraftSurvivors;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A0000000000000000000000C = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.captainxannath.warcraftsurvivors;
+				PRODUCT_NAME = WarcraftSurvivors;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		A0000000000000000000000D = {
+			isa = XCBuildConfiguration;
+			buildSettings = { SDKROOT = iphoneos; }; name = Debug;
+		};
+		A0000000000000000000000E = {
+			isa = XCBuildConfiguration;
+			buildSettings = { SDKROOT = iphoneos; }; name = Release;
+		};
+		A00000000000000000000013 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (A0000000000000000000000B, A0000000000000000000000C,);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00000000000000000000014 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (A0000000000000000000000D, A0000000000000000000000E,);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+	};
+	rootObject = A0000000000000000000000A;
+}

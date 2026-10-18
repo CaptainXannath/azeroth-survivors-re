@@ -1,8 +1,9 @@
 use benilla_app::BuildId;
 
-/// Entry point intended to be called by a native iOS application host.
-#[no_mangle]
-pub extern "C" fn start_winit_app() {
+/// Bevy's mobile entry point. On iOS this is called from the native application startup path,
+/// which initializes UIKit before winit creates the render window and event loop.
+#[bevy::prelude::bevy_main]
+pub fn main() {
     let _ = benilla_app::run_survivors(BuildId {
         version: env!("CARGO_PKG_VERSION"),
         describe: env!("BENILLA_GIT_DESCRIBE"),
