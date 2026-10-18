@@ -71,14 +71,35 @@ pub fn wow_data() -> Option<PathBuf> {
     Some(PathBuf::from("/data"))
 }
 
+/// The iOS Documents/Data folder. Create it on first launch so the app's shared Documents
+/// folder appears in Files even before the player has copied game data into it.
+#[cfg(target_os = "ios")]
+fn ios_documents_data() -> Option<PathBuf> {
+    static DATA_DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
+    DATA_DIR
+        .get_or_init(|| {
+            let home = PathBuf::from(std::env::var_os("HOME")?);
+            let data = home.join("Documents").join("Data");
+            if let Err(error) = std::fs::create_dir_all(&data) {
+                eprintln!(
+                    "benilla: cannot create iOS data folder {}: {error}",
+                    data.display()
+                );
+                return None;
+            }
+            Some(data)
+        })
+        .clone()
+}
+
+#[cfg(not(target_os = "ios"))]
+fn ios_documents_data() -> Option<PathBuf> {
+    None
+}
+
 /// Every place [`wow_data`] looks, in order, whether or not it exists, for a "looked in" message.
 pub fn candidates() -> Vec<PathBuf> {
-    #[cfg(target_os = "ios")]
-    let app_documents_data = std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .map(|home| home.join("Documents").join("Data"));
-    #[cfg(not(target_os = "ios"))]
-    let app_documents_data = None;
+    let app_documents_data = ios_documents_data();
 
     candidates_from(
         std::env::var_os("WOW_DATA").map(PathBuf::from),
