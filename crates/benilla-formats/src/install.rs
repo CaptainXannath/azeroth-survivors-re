@@ -4,7 +4,8 @@
 //! 1. `$WOW_DATA`. Set and empty (`WOW_DATA=`) means no install and ends the search, so the
 //!    no-install path runs on a machine that has one.
 //! 2. `<project folder>/WoW/Data`, `dev` builds only ([`project_folder`]).
-//! 3. `<exe dir>/Data`, then `<exe dir>/WoW/Data`, the release layouts.
+//! 3. On iOS, `<app Documents>/Data`, where Files exposes the app's writable Documents folder.
+//! 4. `<exe dir>/Data`, then `<exe dir>/WoW/Data`, the release layouts.
 //!
 //! `dev` is a default feature here, so every dependent declares `default-features = false` and
 //! re-exports it; otherwise feature unification puts the source-tree path in a player build.
@@ -72,9 +73,17 @@ pub fn wow_data() -> Option<PathBuf> {
 
 /// Every place [`wow_data`] looks, in order, whether or not it exists, for a "looked in" message.
 pub fn candidates() -> Vec<PathBuf> {
+    #[cfg(target_os = "ios")]
+    let app_documents_data = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .map(|home| home.join("Documents").join("Data"));
+    #[cfg(not(target_os = "ios"))]
+    let app_documents_data = None;
+
     candidates_from(
         std::env::var_os("WOW_DATA").map(PathBuf::from),
         project_folder(),
+        app_documents_data,
         std::env::current_exe()
             .ok()
             .and_then(|e| e.parent().map(Path::to_path_buf)),
@@ -86,9 +95,10 @@ pub fn candidates() -> Vec<PathBuf> {
 fn candidates_from(
     override_dir: Option<PathBuf>,
     project: Option<&Path>,
+    app_documents_data: Option<PathBuf>,
     exe_dir: Option<PathBuf>,
 ) -> Vec<PathBuf> {
-    let mut out = Vec::with_capacity(4);
+    let mut out = Vec::with_capacity(5);
 
     // 1. The override; set and empty is no install at all, even in a dev build
     // (`WOW_DATA= cargo play` runs as a player without data).
@@ -104,7 +114,12 @@ fn candidates_from(
         out.push(root.join("WoW/Data"));
     }
 
-    // 3. Beside the binary; a failed `current_exe` adds nothing.
+    // 3. iOS app Documents is writable and exposed by Files when file sharing is enabled.
+    if let Some(data) = app_documents_data {
+        out.push(data);
+    }
+
+    // 4. Beside the binary; a failed `current_exe` adds nothing.
     if let Some(dir) = exe_dir {
         out.push(dir.join("Data"));
         out.push(dir.join("WoW/Data"));
@@ -223,6 +238,7 @@ mod tests {
         candidates_from(
             over.map(PathBuf::from),
             project_folder(),
+            None,
             exe.map(PathBuf::from),
         )
     }
@@ -248,6 +264,16 @@ mod tests {
     }
 
     #[test]
+    fn ios_documents_data_precedes_the_read_only_app_bundle() {
+        let documents = PathBuf::from("/container/Documents/Data");
+        let exe = PathBuf::from("/container/WarcraftSurvivors.app");
+        assert_eq!(
+            candidates_from(None, None, Some(documents.clone()), Some(exe.clone())),
+            vec![documents, exe.join("Data"), exe.join("WoW/Data")]
+        );
+    }
+
+    #[test]
     fn a_candidate_that_does_not_exist_is_never_chosen() {
         let tmp = std::env::temp_dir().join(format!("benilla-wd-{}", std::process::id()));
         std::fs::create_dir_all(tmp.join("Data")).unwrap();
@@ -255,7 +281,7 @@ mod tests {
 
         // The winner depends on the build (dev puts the project folder first), so assert only
         // that it is not the ghost and exists.
-        let chosen = candidates_from(Some(ghost.clone()), project_folder(), Some(tmp.clone()))
+        let chosen = candidates_from(Some(ghost.clone()), project_folder(), None, Some(tmp.clone()))
             .into_iter()
             .find(|c| c.is_dir());
         assert_ne!(
@@ -321,7 +347,7 @@ mod tests {
         );
 
         let launcher = Path::new("/home/player/hello-mod");
-        let c = candidates_from(None, Some(launcher), Some(PathBuf::from("/games/benilla")));
+        let c = candidates_from(None, Some(launcher), None, Some(PathBuf::from("/games/benilla")));
         assert_eq!(
             c,
             vec![
