@@ -399,6 +399,7 @@ mod tests {
     fn click_app() -> (App, Entity) {
         let mut app = App::new();
         app.init_resource::<GlueClicks>()
+            .init_resource::<Touches>()
             .add_systems(Update, glue_clicks);
         let widget = app.world_mut().spawn(Interaction::None).id();
         (app, widget)
