@@ -57,6 +57,7 @@ impl Plugin for SurvivorsPlugin {
             .add_systems(
                 Update,
                 (
+                    touch_controls::read_touches,
                     hero::aim_cursor,
                     mobility::cast_mobility,
                     hero::drive_hero,
