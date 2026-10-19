@@ -12,9 +12,11 @@ the `RedrawRequested` phase. UIKit can invalidate a layer while winit is already
 current draw; upstream asserted that the queued redraw set must be empty, which panicked inside an
 iOS CoreFoundation observer and aborted the app. Replaying those invalidations inside the same
 phase can re-enter the renderer, so the current draw satisfies them and the duplicate requests are
-dropped.
+dropped. The main-end observer also ignores nested invocations while the event loop is already
+inside a callback or redraw phase. UIKit can enter a nested run loop during rendering, and that
+observer must leave the outer event-loop state intact until the current callback returns.
 
-The seven iOS crash reports supplied with this change all show `SIGABRT` from
+The supplied iOS crash reports show `SIGABRT` from
 `winit::platform_impl::ios::event_loop::setup_control_flow_observers::control_flow_main_end_handler`
 about one to two seconds after process launch. They corroborate the redraw-state failure; the
 `.ips` reports do not contain the Rust panic payload itself.

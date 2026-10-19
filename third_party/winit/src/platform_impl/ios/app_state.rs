@@ -699,7 +699,18 @@ pub fn handle_main_events_cleared(mtm: MainThreadMarker) {
     }
     match this.state_mut() {
         AppStateImpl::ProcessingEvents { .. } => {},
-        _ => bug!("`ProcessingRedraws` happened unexpectedly"),
+        // UIKit can enter a nested run loop while winit is handling an event or
+        // drawing a frame. The main-end observer may run again in that nested
+        // loop before the current callback has completed. Leave the current
+        // state alone; the next outer run-loop iteration will process events.
+        AppStateImpl::InUserCallback { .. }
+        | AppStateImpl::ProcessingRedraws { .. }
+        | AppStateImpl::Waiting { .. }
+        | AppStateImpl::PollFinished { .. } => {
+            tracing::debug!("deferring reentrant iOS main-end observer callback");
+            return;
+        },
+        s => bug!("main-end observer ran in unexpected state {:?}", s),
     };
     drop(this);
 
