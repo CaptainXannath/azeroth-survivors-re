@@ -11,6 +11,7 @@ pub(super) struct TouchControls {
     pub(super) mobility_pressed: bool,
     pub(super) stick_offset: Vec2,
     stick_touch: Option<u64>,
+    stick_origin: Option<Vec2>,
 }
 
 pub(super) fn read_touches(
@@ -43,9 +44,10 @@ pub(super) fn read_touches(
         touches.just_released(id) || touches.just_canceled(id) || touches.get_pressed(id).is_none()
     }) {
         controls.stick_touch = None;
+        controls.stick_origin = None;
     }
     if controls.stick_touch.is_none() {
-        controls.stick_touch = touches
+        if let Some(touch) = touches
             .iter_just_pressed()
             .filter(|touch| {
                 let p = touch.position();
@@ -56,11 +58,15 @@ pub(super) fn read_touches(
                     .length_squared()
                     .total_cmp(&(b.position() - stick_center).length_squared())
             })
-            .map(|touch| touch.id());
+        {
+            controls.stick_touch = Some(touch.id());
+            controls.stick_origin = Some(touch.position());
+        }
     }
 
     if let Some(touch) = controls.stick_touch.and_then(|id| touches.get_pressed(id)) {
-        let delta = touch.position() - stick_center;
+        // Anchor the stick at touch-down so resting a thumb on the control does not move the hero.
+        let delta = touch.position() - controls.stick_origin.unwrap_or_else(|| touch.position());
         let length = delta.length();
 
         if length > 12.0 * ui_scale {
@@ -80,3 +86,4 @@ pub(super) fn read_touches(
         controls.mobility_pressed |= position.distance(mobility_center) <= 72.0 * ui_scale;
     }
 }
+
