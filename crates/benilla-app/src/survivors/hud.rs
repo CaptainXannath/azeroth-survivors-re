@@ -369,6 +369,7 @@ fn spell_name(spells: Option<&crate::ui_action::Spells>, spell: u32, fallback: &
 
 pub(super) fn touch_visuals(
     controls: Res<TouchControls>,
+    ui_scale: Res<UiScale>,
     windows: Query<&Window, With<PrimaryWindow>>,
     mut stick_nodes: Query<
         (
@@ -395,15 +396,16 @@ pub(super) fn touch_visuals(
     };
     let stick_radius = height * 0.114;
     let knob_center = height * 0.0665;
+    let layout_scale = ui_scale.0.max(f32::EPSILON);
     for (mut node, base, knob, mut visibility) in &mut stick_nodes {
         *visibility = Visibility::Inherited;
         if base.is_some() {
-            // Touch positions name the stick center; position its top-left edge from that point.
-            node.left = Val::Px(center.x - stick_radius);
-            node.top = Val::Px(center.y - stick_radius);
+            // Convert screen touch points to the scaled UI layout before anchoring the stick.
+            node.left = Val::Px((center.x - stick_radius) / layout_scale);
+            node.top = Val::Px((center.y - stick_radius) / layout_scale);
         } else if knob.is_some() {
-            node.left = Val::Px(knob_center + controls.stick_offset.x);
-            node.top = Val::Px(knob_center + controls.stick_offset.y);
+            node.left = Val::Px((knob_center + controls.stick_offset.x) / layout_scale);
+            node.top = Val::Px((knob_center + controls.stick_offset.y) / layout_scale);
         }
     }
 }
