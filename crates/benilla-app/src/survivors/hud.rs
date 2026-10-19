@@ -1391,8 +1391,8 @@ pub(super) fn buttons(
 pub(super) fn refresh_options(
     sound: Res<crate::sound::SoundConfig>,
     options: Res<SurvivorOptions>,
-    mut audio: Query<&mut Text, With<OptionsAudioValue>>,
-    mut frame_limit: Query<&mut Text, With<OptionsFrameLimitValue>>,
+    mut audio: Query<&mut Text, (With<OptionsAudioValue>, Without<OptionsFrameLimitValue>)>,
+    mut frame_limit: Query<&mut Text, (With<OptionsFrameLimitValue>, Without<OptionsAudioValue>)>,
 ) {
     if sound.is_changed() {
         if let Ok(mut text) = audio.single_mut() {
