@@ -578,23 +578,13 @@ pub(crate) fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(
                 _ => unreachable!(),
             };
             if processing_redraws && !queued_gpu_redraws.is_empty() {
-                // UIKit can invalidate the layer while a redraw callback is running. Deliver
-                // that coalesced redraw after the current callback instead of panicking.
-                let redraw_events = queued_gpu_redraws
-                    .into_iter()
-                    .map(|window| {
-                        EventWrapper::StaticEvent(Event::WindowEvent {
-                            window_id: RootWindowId(window.id()),
-                            event: WindowEvent::RedrawRequested,
-                        })
-                    })
-                    .collect();
-                this.app_state = Some(AppStateImpl::InUserCallback {
-                    queued_events: redraw_events,
-                    queued_gpu_redraws: HashSet::new(),
-                });
-                drop(this);
-                continue;
+                // UIKit may invalidate the layer while its current redraw is being handled.
+                // That invalidation is covered by the draw in progress; replaying it here
+                // re-enters the renderer before the redraw phase has finished.
+                tracing::debug!(
+                    count = queued_gpu_redraws.len(),
+                    "coalescing GPU redraws requested during redraw callbacks"
+                );
             }
             this.app_state = Some(if processing_redraws {
                 AppStateImpl::ProcessingRedraws { handler, active_control_flow }

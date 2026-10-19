@@ -7,11 +7,12 @@ and license files. It is wired through `[patch.crates-io]` in the workspace root
 
 ## iOS redraw carry
 
-`src/platform_impl/ios/app_state.rs` defers GPU redraws queued reentrantly during a
-`RedrawRequested` callback until the callback finishes. UIKit can invalidate a layer while winit
-is already processing redraws; upstream asserted that the queued redraw set must be empty, which
-panicked inside an iOS CoreFoundation observer and aborted the app. The deferred redraws are
-coalesced by the existing `HashSet` and delivered before winit returns to the run loop.
+`src/platform_impl/ios/app_state.rs` coalesces GPU redraw invalidations raised reentrantly during
+the `RedrawRequested` phase. UIKit can invalidate a layer while winit is already processing its
+current draw; upstream asserted that the queued redraw set must be empty, which panicked inside an
+iOS CoreFoundation observer and aborted the app. Replaying those invalidations inside the same
+phase can re-enter the renderer, so the current draw satisfies them and the duplicate requests are
+dropped.
 
 The seven iOS crash reports supplied with this change all show `SIGABRT` from
 `winit::platform_impl::ios::event_loop::setup_control_flow_observers::control_flow_main_end_handler`
