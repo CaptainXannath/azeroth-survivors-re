@@ -34,6 +34,8 @@ pub(super) struct HudRoot;
 #[derive(Component)]
 pub(super) struct VirtualStickKnob;
 #[derive(Component)]
+struct VirtualStickBase;
+#[derive(Component)]
 pub(super) struct LevelUpRoot;
 #[derive(Component)]
 pub(super) struct PauseRoot;
@@ -288,7 +290,14 @@ fn spell_name(spells: Option<&crate::ui_action::Spells>, spell: u32, fallback: &
 pub(super) fn touch_visuals(
     controls: Res<TouchControls>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    mut knob: Query<&mut Node, With<VirtualStickKnob>>,
+    mut stick_nodes: Query<
+        (
+            &mut Node,
+            Option<&VirtualStickBase>,
+            Option<&VirtualStickKnob>,
+        ),
+        Or<(With<VirtualStickBase>, With<VirtualStickKnob>)>,
+    >,
 ) {
     if !controls.is_changed() {
         return;
@@ -296,10 +305,19 @@ pub(super) fn touch_visuals(
     let Ok(window) = windows.single() else {
         return;
     };
-    let knob_center = window.height() * 0.0665;
-    for mut node in &mut knob {
-        node.left = Val::Px(knob_center + controls.stick_offset.x);
-        node.top = Val::Px(knob_center + controls.stick_offset.y);
+    let height = window.height();
+    let center = controls
+        .stick_origin
+        .unwrap_or(Vec2::new(window.width() * 0.12, height * 0.85));
+    let knob_center = height * 0.0665;
+    for (mut node, base, knob) in &mut stick_nodes {
+        if base.is_some() {
+            node.left = Val::Px(center.x);
+            node.bottom = Val::Px(height - center.y);
+        } else if knob.is_some() {
+            node.left = Val::Px(knob_center + controls.stick_offset.x);
+            node.top = Val::Px(knob_center + controls.stick_offset.y);
+        }
     }
 }
 
@@ -332,6 +350,7 @@ pub(super) fn setup_hud(
         .with_children(|root| {
             // Left virtual stick, plus Jump and the class mobility action on the right.
             root.spawn((
+                VirtualStickBase,
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Percent(12.0),
