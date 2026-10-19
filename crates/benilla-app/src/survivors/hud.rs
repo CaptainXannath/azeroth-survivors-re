@@ -389,11 +389,13 @@ pub(super) fn touch_visuals(
     let center = controls
         .stick_origin
         .unwrap_or(Vec2::new(window.width() * 0.12, height * 0.85));
+    let stick_radius = height * 0.114;
     let knob_center = height * 0.0665;
     for (mut node, base, knob) in &mut stick_nodes {
         if base.is_some() {
-            node.left = Val::Px(center.x);
-            node.bottom = Val::Px(height - center.y);
+            // Touch positions name the stick center; position its top-left edge from that point.
+            node.left = Val::Px(center.x - stick_radius);
+            node.bottom = Val::Px(height - center.y - stick_radius);
         } else if knob.is_some() {
             node.left = Val::Px(knob_center + controls.stick_offset.x);
             node.top = Val::Px(knob_center + controls.stick_offset.y);
@@ -437,11 +439,6 @@ pub(super) fn setup_hud(
                     bottom: Val::Percent(15.0),
                     width: Val::Vh(22.8),
                     height: Val::Vh(22.8),
-                    margin: UiRect {
-                        left: Val::Vh(-11.4),
-                        bottom: Val::Vh(-11.4),
-                        ..default()
-                    },
                     border_radius: BorderRadius::MAX,
                     ..default()
                 },
