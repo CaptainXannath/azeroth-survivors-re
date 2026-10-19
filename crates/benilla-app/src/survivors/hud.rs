@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 20697)
+Total output lines: 2365
+
 //! The mode's screens, in bevy_ui since FrameXML is off: the class and hero pick, the in-run HUD,
 //! the level-up cards, pause, and the results.
 
@@ -1121,91 +1124,7 @@ pub(super) fn looks_for(
 ) -> Vec<(u32, u8, u8)> {
     let mut out: Vec<(u32, u8, u8)> = Vec::new();
     for &d in class.looks {
-        if let Some((race, sex)) = creatures.display_race_sex(d) {
-            if !out.iter().any(|&(_, r, s)| r == race && s == sex) {
-                out.push((d, race, sex));
-            }
-        }
-    }
-    out.sort_by_key(|&(_, r, s)| (r, s));
-    out
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(super) fn buttons(
-    mut presses: Query<
-        (&Interaction, &UiAction, &BaseColor, &mut BackgroundColor),
-        Changed<Interaction>,
-    >,
-    mut next: ResMut<NextState<Phase>>,
-    mut exit: MessageWriter<AppExit>,
-    phase: Res<State<Phase>>,
-) {
-    for (interaction, action, base, mut bg) in &mut presses {
-        match interaction {
-            Interaction::Hovered => bg.0 = BUTTON_HOT,
-            Interaction::None => bg.0 = base.0,
-            Interaction::Pressed => {
-                bg.0 = BUTTON_HOT;
-                match (*action, *phase.get()) {
-                    (UiAction::Pause, Phase::Playing) => next.set(Phase::Paused),
-                    (UiAction::Resume, Phase::Paused) => next.set(Phase::Playing),
-                    (UiAction::MainMenu, Phase::Paused | Phase::GameOver) => next.set(Phase::Menu),
-                    (UiAction::Quit, Phase::Paused | Phase::GameOver) => {
-                        exit.write(AppExit::Success);
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-}
-
-pub(super) fn keys(
-    keys: Res<ButtonInput<KeyCode>>,
-    phase: Res<State<Phase>>,
-    mut selection: ResMut<Selection>,
-    mut run: ResMut<Run>,
-    mut next: ResMut<NextState<Phase>>,
-) {
-    match phase.get() {
-        Phase::Menu => {
-            if keys.just_pressed(KeyCode::Enter) && start_run(&mut run, &mut selection) {
-                next.set(Phase::Playing);
-            }
-        }
-        Phase::Playing => {
-            if keys.just_pressed(KeyCode::Escape) {
-                next.set(Phase::Paused);
-            }
-        }
-        Phase::Paused => {
-            if keys.just_pressed(KeyCode::Escape) {
-                next.set(Phase::Playing);
-            }
-        }
-        Phase::LevelUp => {}
-        Phase::GameOver => {
-            if keys.just_pressed(KeyCode::Enter) {
-                next.set(Phase::Menu);
-            }
-        }
-    }
-}
-
-/// The class's looks once the creature data is in, defaulting to the first. The auto-runner picks
-/// a class with no look; the menu itself always sets both.
-pub(super) fn refresh_menu(
-    mut selection: ResMut<Selection>,
-    creatures: Option<Res<crate::entities::Creatures>>,
-) {
-    if let (Some(class), Some(creatures)) = (selection.class_def(), creatures.as_deref()) {
-        if selection.looks.is_empty() {
-            let looks = looks_for(class, creatures);
-            if !looks.is_empty() {
-                selection.looks = looks;
-                selection.look = Some(0);
-                selection.version += 1;
+        if let Some((race, sex)) = creatures.display_race_sex(d…697 tokens truncated…lection.version += 1;
             }
         }
     }
@@ -2300,13 +2219,27 @@ pub(super) fn icon_tooltip(
 pub(super) fn show_panels(
     phase: Res<State<Phase>>,
     mut pause_button: Query<&mut Visibility, With<PauseButton>>,
-    mut roots: ParamSet<(
-        Query<(&mut Visibility, &mut Node), With<MenuRoot>>,
-        Query<(&mut Visibility, &mut Node), With<HudRoot>>,
-        Query<(&mut Visibility, &mut Node), With<LevelUpRoot>>,
-        Query<(&mut Visibility, &mut Node), With<PauseRoot>>,
-        Query<(&mut Visibility, &mut Node), With<OverRoot>>,
-    )>,
+    mut roots: Query<
+        (
+            &mut Visibility,
+            &mut Node,
+            Option<&MenuRoot>,
+            Option<&HudRoot>,
+            Option<&LevelUpRoot>,
+            Option<&PauseRoot>,
+            Option<&OverRoot>,
+        ),
+        (
+            Or<(
+                With<MenuRoot>,
+                With<HudRoot>,
+                With<LevelUpRoot>,
+                With<PauseRoot>,
+                With<OverRoot>,
+            )>,
+            Without<PauseButton>,
+        ),
+    >,
 ) {
     let p = *phase.get();
     // A hidden panel leaves the layout too: a merely invisible button still takes clicks.
@@ -2324,20 +2257,21 @@ pub(super) fn show_panels(
             node.display = display;
         }
     };
-    for root in &mut roots.p0() {
-        set(root, p == Phase::Menu);
-    }
-    for root in &mut roots.p1() {
-        set(root, p != Phase::Menu && p != Phase::GameOver);
-    }
-    for root in &mut roots.p2() {
-        set(root, p == Phase::LevelUp);
-    }
-    for root in &mut roots.p3() {
-        set(root, p == Phase::Paused);
-    }
-    for root in &mut roots.p4() {
-        set(root, p == Phase::GameOver);
+    for (visibility, node, menu, hud, level_up, pause, over) in &mut roots {
+        let on = if menu.is_some() {
+            p == Phase::Menu
+        } else if hud.is_some() {
+            p != Phase::Menu && p != Phase::GameOver
+        } else if level_up.is_some() {
+            p == Phase::LevelUp
+        } else if pause.is_some() {
+            p == Phase::Paused
+        } else if over.is_some() {
+            p == Phase::GameOver
+        } else {
+            false
+        };
+        set((visibility, node), on);
     }
     for mut visibility in &mut pause_button {
         *visibility = if p == Phase::Playing {
@@ -2347,3 +2281,4 @@ pub(super) fn show_panels(
         };
     }
 }
+
