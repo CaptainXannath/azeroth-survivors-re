@@ -1772,8 +1772,22 @@ pub(super) fn refresh_mobility(
     run: Res<Run>,
     mut commands: Commands,
     mut icon: Query<(Entity, Option<&SpellIcon>, &mut Visibility), With<MobilityTouchIcon>>,
-    mut label: Query<&mut Visibility, (With<MobilityTouchLabel>, Without<MobilityTouchKey>)>,
-    mut key: Query<&mut Visibility, (With<MobilityTouchKey>, Without<MobilityTouchLabel>)>,
+    mut label: Query<
+        &mut Visibility,
+        (
+            With<MobilityTouchLabel>,
+            Without<MobilityTouchKey>,
+            Without<MobilityTouchIcon>,
+        ),
+    >,
+    mut key: Query<
+        &mut Visibility,
+        (
+            With<MobilityTouchKey>,
+            Without<MobilityTouchLabel>,
+            Without<MobilityTouchIcon>,
+        ),
+    >,
     sweep: Query<&MobilitySweep>,
     mut mats: ResMut<Assets<SweepUiMaterial>>,
 ) {
