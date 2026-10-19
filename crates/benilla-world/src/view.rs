@@ -6,6 +6,10 @@
 
 use bevy::prelude::*;
 
+/// Focus point used by the survivor camera's tree-occlusion fade.
+#[derive(Component, Clone, Copy)]
+pub struct CameraFocus(pub Vec3);
+
 /// The viewer's own body, as the world needs it: the eye point for the WMO interior probe, a wading
 /// body for the water foam, the commanded speed for the precipitation tilt. Defaulted, it is no
 /// body at all, which is what the world viewer runs with.

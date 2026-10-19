@@ -26,6 +26,7 @@ pub(super) fn apply_model_visibility(
             Ref<GlobalTransform>,
             Ref<Projection>,
             Option<Ref<Transform>>,
+            Option<Ref<crate::view::CameraFocus>>,
         ),
         With<WorldCamera>,
     >,
@@ -59,6 +60,7 @@ pub(super) fn apply_model_visibility(
         Has<crate::exterior_cull::ExteriorScene>,
         Option<Ref<super::FarSideOfWater>>,
         Option<&crate::billboard::BillboardCard>,
+        Option<&crate::model_fade::CameraOccluder>,
     )>,
     // A building's MLIQ surfaces: a `WmoGroupVis` but no `ModelPart`, so none of the submesh
     // rules. A query here rather than a second writer, so a culled room's water goes with it.
@@ -76,12 +78,15 @@ pub(super) fn apply_model_visibility(
 ) {
     let m = &debug.models;
     let cam_view = cam.iter().next();
-    let cam_t = cam_view.as_ref().map(|(t, _, _)| t);
+    let cam_t = cam_view.as_ref().map(|(t, _, _, _)| t);
     // Every whole-scene input still since last frame: a part whose own row is still too would
     // come out unchanged, so it skips the walk. The camera's local `Transform` counts too: this
     // runs before propagation, so a teleport's move shows only there.
-    let scene_still = cam_view.as_ref().is_some_and(|(t, p, l)| {
-        !t.is_changed() && !p.is_changed() && !l.as_ref().is_some_and(|l| l.is_changed())
+    let scene_still = cam_view.as_ref().is_some_and(|(t, p, l, focus)| {
+        !t.is_changed()
+            && !p.is_changed()
+            && !l.as_ref().is_some_and(|l| l.is_changed())
+            && !focus.as_ref().is_some_and(|f| f.is_changed())
     }) && !debug.is_changed()
         && !view.is_changed()
         && !windows.is_changed()
@@ -91,9 +96,12 @@ pub(super) fn apply_model_visibility(
         && owner_flips.is_empty();
     let cam_pos = cam_t.map(|t| t.translation());
     let cam_fwd = cam_t.map(|t| Vec3::from(t.forward()));
+    let focus = cam_view
+        .as_ref()
+        .and_then(|(_, _, _, focus)| focus.as_ref().map(|focus| focus.0));
     let gate = crate::exterior_cull::ExteriorGate::build(
         &windows,
-        cam_view.as_ref().map(|(t, p, _)| (&**t, &**p)),
+        cam_view.as_ref().map(|(t, p, _, _)| (&**t, &**p)),
     );
     // The placement the camera stands in, exempt from its own window gate.
     let own_instance = claim.0.map(|c| c.room.instance);
@@ -115,6 +123,7 @@ pub(super) fn apply_model_visibility(
             exterior,
             far_side,
             card,
+            camera_occluder,
         )| {
             if scene_still
                 && !unmarked.contains(&entity)
@@ -184,6 +193,23 @@ pub(super) fn apply_model_visibility(
             // The animated colour-alpha × transparency-weight factor, into the tag below and the
             // cull here: the reference skips a batch whose alpha is ≤ 0 (`0x707b3a`).
             let mat_factor = mat_anim.map_or(1.0, |m| m.current);
+
+            let occlusion_alpha = if camera_occluder.is_some() {
+                focus.zip(cam_pos).map_or(1.0, |(focus, camera)| {
+                    let (center, radius) = match aabb {
+                        Some(a) => (
+                            xf.transform_point(Vec3::from(a.center)),
+                            Vec3::from(a.half_extents).length()
+                                * xf.affine().matrix3.x_axis.length(),
+                        ),
+                        None => (pos, 0.0),
+                    };
+                    camera_occlusion_alpha(camera, focus, center, radius)
+                })
+            } else {
+                1.0
+            };
+            let fade_alpha = fade_alpha * occlusion_alpha;
 
             // Inside a WMO, exterior content draws only through a portal window; untagged content
             // (units, GameObjects) and the camera's own building are exempt.
@@ -293,6 +319,28 @@ pub(super) fn apply_model_visibility(
                 tag.0 = bits;
             }
         }
+    }
+}
+
+/// Fade tree bounds that cross the view segment, leaving a narrow clear line to the avatar.
+fn camera_occlusion_alpha(camera: Vec3, focus: Vec3, center: Vec3, radius: f32) -> f32 {
+    let segment = focus - camera;
+    let length_squared = segment.length_squared();
+    if length_squared <= f32::EPSILON {
+        return 1.0;
+    }
+    let along = (center - camera).dot(segment) / length_squared;
+    if !(0.02..=0.98).contains(&along) {
+        return 1.0;
+    }
+    let closest = camera + segment * along;
+    let clearance = center.distance(closest) - radius.max(0.0);
+    if clearance <= 0.0 {
+        0.22
+    } else if clearance >= 2.0 {
+        1.0
+    } else {
+        0.22 + 0.78 * clearance / 2.0
     }
 }
 

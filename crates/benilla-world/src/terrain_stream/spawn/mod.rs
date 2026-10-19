@@ -10,8 +10,8 @@ use fx::{
     emitter_fade, spawn_emitters_for, spawn_lights_for, spawn_ribbons_for, spawn_wmo_lights_for,
 };
 
-use std::sync::Arc;
 use bevy::platform::time::Instant;
+use std::sync::Arc;
 
 use benilla_assets::coords::{wmo_doodad_local, wow_to_bevy};
 use benilla_assets::{AdtTile, DoodadBase, M2Model, WmoModel};
@@ -191,6 +191,19 @@ pub(super) fn spawn_loaded_placements(
                         id: unique_id,
                         detail: format!("emitters: {}", m.emitters.len()),
                     });
+                    let camera_occluder = is_tree_model(&object.label);
+                    let merge_site = if camera_occluder {
+                        None
+                    } else {
+                        Some((&mut *merge, MergeSite::Doodad { owner: p.owner }))
+                    };
+                    let gx_site = if camera_occluder {
+                        None
+                    } else {
+                        staticgx
+                            .as_deref_mut()
+                            .map(|gx| (gx, crate::static_gx::GxSite::Doodad { owner: p.owner }))
+                    };
                     let SpawnedModel {
                         entities: mut ents,
                         by_batch,
@@ -219,10 +232,8 @@ pub(super) fn spawn_loaded_placements(
                         &mut anim_table,
                         false, // world-static: not the entity-hosted lane
                         None,  // world-static placement: cards bake their world pivot
-                        Some((&mut *merge, MergeSite::Doodad { owner: p.owner })),
-                        staticgx
-                            .as_deref_mut()
-                            .map(|gx| (gx, crate::static_gx::GxSite::Doodad { owner: p.owner })),
+                        merge_site,
+                        gx_site,
                     );
                     // ADT doodads are exterior scene: from inside a WMO they draw only through a
                     // portal window (`0x683700`, fed only by the per-window walk `0x682fa0`).
@@ -231,6 +242,11 @@ pub(super) fn spawn_loaded_placements(
                     // is skipped: with no geometry it has no `Aabb`, and would only pad the counts.
                     let anim_root = host.as_ref().map(|h| h.root);
                     for e in ents.iter().filter(|e| Some(**e) != anim_root) {
+                        if camera_occluder {
+                            commands
+                                .entity(*e)
+                                .insert(crate::model_fade::CameraOccluder);
+                        }
                         commands
                             .entity(*e)
                             .insert(crate::exterior_cull::ExteriorScene);
@@ -764,6 +780,12 @@ pub(super) fn spawn_loaded_placements(
         }
     }
     activity.spawn_ms += t0.elapsed().as_secs_f32() * 1000.0;
+}
+
+/// Tree placements stay per-submesh so the survivor camera can fade them independently.
+fn is_tree_model(label: &str) -> bool {
+    let label = label.to_ascii_lowercase().replace('/', "\\");
+    label.contains("\\tree\\") || label.contains("\\trees\\")
 }
 
 /// A WMO placement's doodad props: set 0, always shown, plus its MODF-selected set.

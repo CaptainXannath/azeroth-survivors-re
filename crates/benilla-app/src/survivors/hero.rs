@@ -334,7 +334,15 @@ pub(super) fn place_camera(
     player: Res<crate::player::Player>,
     world: WorldPoint,
     hero: Query<&Transform, (With<Hero>, Without<WorldCamera>)>,
-    mut cams: Query<&mut Transform, With<WorldCamera>>,
+    mut cams: Query<
+        (
+            Entity,
+            &mut Transform,
+            Option<&mut benilla_world::view::CameraFocus>,
+        ),
+        With<WorldCamera>,
+    >,
+    mut commands: Commands,
 ) {
     // `C` unlocks the camera to swing and tilt; locking it again snaps back to the top-down view,
     // so world-relative WASD lines up with the screen again.
@@ -384,8 +392,15 @@ pub(super) fn place_camera(
         (eye, look)
     };
     let placed = Transform::from_translation(eye).looking_at(look, Vec3::Y);
-    for mut cam in &mut cams {
+    for (entity, mut cam, target) in &mut cams {
         *cam = placed;
+        if let Some(mut target) = target {
+            target.0 = look;
+        } else {
+            commands
+                .entity(entity)
+                .insert(benilla_world::view::CameraFocus(look));
+        }
     }
 }
 

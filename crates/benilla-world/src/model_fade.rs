@@ -26,6 +26,10 @@ pub struct DoodadFade {
     pub(crate) blend: Handle<WowModelMaterial>,
 }
 
+/// A streamed tree whose draw alpha may be reduced when it crosses the camera-to-focus segment.
+#[derive(Component, Clone, Copy)]
+pub struct CameraOccluder;
+
 /// Above this bounding radius (yd) a doodad never distance-fades; only the far clip drops it.
 pub const NEVER_FADE_RADIUS: f32 = 7.0;
 
