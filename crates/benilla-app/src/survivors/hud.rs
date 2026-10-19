@@ -395,7 +395,7 @@ pub(super) fn touch_visuals(
         if base.is_some() {
             // Touch positions name the stick center; position its top-left edge from that point.
             node.left = Val::Px(center.x - stick_radius);
-            node.bottom = Val::Px(height - center.y - stick_radius);
+            node.top = Val::Px(center.y - stick_radius);
         } else if knob.is_some() {
             node.left = Val::Px(knob_center + controls.stick_offset.x);
             node.top = Val::Px(knob_center + controls.stick_offset.y);
