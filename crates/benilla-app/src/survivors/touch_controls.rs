@@ -11,7 +11,7 @@ pub(super) struct TouchControls {
     pub(super) mobility_pressed: bool,
     pub(super) stick_offset: Vec2,
     stick_touch: Option<u64>,
-    stick_origin: Option<Vec2>,
+    pub(super) stick_origin: Option<Vec2>,
 }
 
 pub(super) fn read_touches(
@@ -38,8 +38,7 @@ pub(super) fn read_touches(
     let ui_scale = (size.y / 720.0).clamp(0.8, 1.5);
     let stick_radius = 82.0 * ui_scale;
 
-    // Claim one left-side finger on touch-down and keep it through the gesture. The wide zone
-    // avoids requiring a precise initial tap on the joystick artwork.
+    // Let the floating stick start anywhere in the lower-left half of the screen.
     if controls.stick_touch.is_some_and(|id| {
         touches.just_released(id) || touches.just_canceled(id) || touches.get_pressed(id).is_none()
     }) {
@@ -65,7 +64,7 @@ pub(super) fn read_touches(
     }
 
     if let Some(touch) = controls.stick_touch.and_then(|id| touches.get_pressed(id)) {
-        // Anchor the stick at touch-down so resting a thumb on the control does not move the hero.
+        // Center the floating stick under the thumb; movement starts only after a drag.
         let delta = touch.position() - controls.stick_origin.unwrap_or_else(|| touch.position());
         let length = delta.length();
 
