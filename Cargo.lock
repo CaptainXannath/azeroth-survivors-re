@@ -7437,9 +7437,9 @@ dependencies = [
 name = "warcraft-survivors"
 version = "0.2.0"
 dependencies = [
-	"bevy",
  "benilla-app",
  "benilla-buildstamp",
+ "bevy",
 ]
 
 [[package]]

@@ -50,11 +50,12 @@ impl Plugin for SurvivorsPlugin {
             .init_resource::<abilities::PendingHits>()
             .init_resource::<enemies::Spawner>()
             .init_resource::<hud::Offer>()
+            .init_resource::<hud::SurvivorOptions>()
             .init_resource::<cards::PendingPick>()
             .add_message::<abilities::Hit>()
             .add_message::<enemies::Loot>()
             .add_plugins(bevy::ui_render::UiMaterialPlugin::<hud::SweepUiMaterial>::default())
-            .add_systems(Startup, hud::setup_hud)
+            .add_systems(Startup, (hud::setup_hud, hud::load_options))
             .add_systems(Update, hero::daylight)
             .add_systems(
                 Update,
@@ -112,6 +113,7 @@ impl Plugin for SurvivorsPlugin {
                     hud::fill_icons,
                     hud::update_cooldown_sweeps,
                     hud::refresh_mobility,
+                    hud::refresh_options,
                     hud::show_panels,
                 )
                     .chain()

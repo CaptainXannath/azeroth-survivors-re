@@ -45,6 +45,7 @@ pub(super) enum MenuAction {
     Map(usize),
     Randomize,
     Enter,
+    Options,
 }
 
 /// On [`MenuRoot`] once the glue art is in and the screen is built.
@@ -158,6 +159,27 @@ pub(super) fn build_menu(
             ));
         }
         zone_frame(ui, &art, f);
+
+        // Keep the settings entry in the upper center, clear of the character and zone panels.
+        ui.spawn(Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(300.0),
+            top: Val::Px(18.0),
+            ..default()
+        })
+        .with_children(|c| {
+            glue_button(
+                c,
+                &art,
+                f,
+                MenuAction::Options,
+                "Options",
+                112.0,
+                34.0,
+                GlueBtnKind::Small,
+                1.0,
+            );
+        });
 
         // `CharSelectCharacterName`, GlueFontNormalHuge at BOTTOM (0,100).
         ui.spawn(Node {
@@ -528,6 +550,7 @@ pub(super) fn menu_clicks(
     mut run: ResMut<Run>,
     mut rng: ResMut<Rng>,
     mut next: ResMut<NextState<Phase>>,
+    mut options: ResMut<super::hud::SurvivorOptions>,
 ) {
     if *phase.get() != Phase::Menu {
         return;
@@ -542,6 +565,10 @@ pub(super) fn menu_clicks(
     // Zone selection and Enter World do not need character model data. Keep those controls live
     // when the optional creature catalog failed to load; race/class selection still needs it.
     match action {
+        MenuAction::Options => {
+            options.open = true;
+            return;
+        }
         MenuAction::Map(i) => {
             if selection.map != i {
                 selection.map = i;
@@ -568,7 +595,9 @@ pub(super) fn menu_clicks(
         .map(|&(_, r, s)| (r, s));
     let (race, sex) = (cur.map(|c| c.0), cur.map_or(0, |c| c.1));
     match action {
-        MenuAction::Map(_) | MenuAction::Enter => unreachable!("handled above"),
+        MenuAction::Map(_) | MenuAction::Enter | MenuAction::Options => {
+            unreachable!("handled above")
+        }
         MenuAction::Randomize => {
             let picks: Vec<(usize, usize)> = all
                 .iter()
@@ -654,7 +683,7 @@ pub(super) fn refresh_menu_ui(
             MenuAction::Sex(s) => cur.is_some_and(|c| c.1 == s),
             MenuAction::Class(i) => selection.class == Some(i),
             MenuAction::Map(i) => selection.map == i,
-            MenuAction::Randomize | MenuAction::Enter => false,
+            MenuAction::Randomize | MenuAction::Enter | MenuAction::Options => false,
         };
         if let Some(mut lock) = lock {
             if lock.0 != selected {

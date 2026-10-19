@@ -2,6 +2,7 @@
 //! the level-up cards, pause, and the results.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use benilla_ui::script::nameplate;
 use benilla_world::view::WorldCamera;
@@ -10,6 +11,7 @@ use bevy::render::render_resource::AsBindGroup;
 use bevy::shader::ShaderRef;
 use bevy::ui_render::ui_material::{MaterialNode, UiMaterial};
 use bevy::window::PrimaryWindow;
+use bevy::winit::{UpdateMode, WinitSettings};
 
 use super::data::{self, AbilityDef, Effect, Kind, PassiveDef, Stat};
 use super::hero::{self, Hero};
@@ -18,8 +20,6 @@ use super::touch_controls::TouchControls;
 use super::{Owned, Phase, Rng, Run, Selection, Stats};
 
 const GOLD: Color = Color::srgb(1.0, 0.82, 0.0);
-/// The mobility button's edge, an action button's 36 units.
-const MOBILITY_SIZE: f32 = 40.0;
 const EDGE: Color = Color::srgb(0.55, 0.45, 0.25);
 const BUTTON: Color = Color::srgba(0.18, 0.06, 0.04, 0.95);
 const BUTTON_HOT: Color = Color::srgba(0.36, 0.12, 0.06, 0.98);
@@ -34,7 +34,7 @@ pub(super) struct HudRoot;
 #[derive(Component)]
 pub(super) struct VirtualStickKnob;
 #[derive(Component)]
-struct VirtualStickBase;
+pub(super) struct VirtualStickBase;
 #[derive(Component)]
 pub(super) struct LevelUpRoot;
 #[derive(Component)]
@@ -100,11 +100,12 @@ pub(super) struct AbilitySweep {
     index: usize,
 }
 
-/// The class mobility's action button, bottom centre over the XP bar; shown once it is learned.
 #[derive(Component)]
-pub(super) struct MobilitySlot;
+pub(super) struct MobilityTouchIcon;
 #[derive(Component)]
-pub(super) struct MobilityIcon;
+pub(super) struct MobilityTouchLabel;
+#[derive(Component)]
+pub(super) struct MobilityTouchKey;
 #[derive(Component)]
 pub(super) struct MobilitySweep(Handle<SweepUiMaterial>);
 #[derive(Component)]
@@ -170,8 +171,87 @@ pub(super) struct TipBody;
 pub(super) enum UiAction {
     Pause,
     Resume,
+    Options,
+    OptionsBack,
+    AudioDown,
+    AudioUp,
+    CycleFrameLimit,
     MainMenu,
     Quit,
+}
+
+#[derive(Resource, Default)]
+pub(super) struct SurvivorOptions {
+    /// None leaves Bevy's continuous update mode; a value requests an approximate update cap.
+    pub(super) frame_limit: Option<u16>,
+    pub(super) open: bool,
+}
+
+#[derive(Component)]
+pub(super) struct OptionsPanel;
+#[derive(Component)]
+pub(super) struct OptionsRoot;
+#[derive(Component)]
+pub(super) struct PauseChoices;
+#[derive(Component)]
+pub(super) struct OptionsAudioValue;
+#[derive(Component)]
+pub(super) struct OptionsFrameLimitValue;
+
+fn options_path() -> Option<std::path::PathBuf> {
+    crate::local_state::home().map(|home| home.join("survivors-options.txt"))
+}
+
+pub(super) fn load_options(
+    mut options: ResMut<SurvivorOptions>,
+    mut sound: ResMut<crate::sound::SoundConfig>,
+    mut winit: ResMut<WinitSettings>,
+) {
+    let Some(contents) =
+        options_path().and_then(|path| crate::local_state::read_to_string(&path).ok())
+    else {
+        return;
+    };
+    for line in contents.lines() {
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        match key.trim() {
+            "master_volume" => {
+                if let Ok(value) = value.trim().parse::<f32>() {
+                    sound.master = value.clamp(0.0, 1.0);
+                }
+            }
+            "frame_limit" => {
+                options.frame_limit = match value.trim() {
+                    "30" => Some(30),
+                    "45" => Some(45),
+                    "60" => Some(60),
+                    _ => None,
+                }
+            }
+            _ => {}
+        }
+    }
+    winit.focused_mode = options.frame_limit.map_or(UpdateMode::Continuous, |fps| {
+        UpdateMode::reactive(Duration::from_secs_f64(1.0 / fps as f64))
+    });
+}
+
+fn save_options(sound: &crate::sound::SoundConfig, options: &SurvivorOptions) {
+    let Some(path) = options_path() else { return };
+    let frame_limit = options
+        .frame_limit
+        .map_or_else(|| "unlimited".to_owned(), |fps| fps.to_string());
+    if let Err(error) = crate::local_state::write_atomic(
+        &path,
+        &format!(
+            "master_volume={:.3}\nframe_limit={frame_limit}\n",
+            sound.master
+        ),
+    ) {
+        warn!(?error, "could not save Warcraft Survivors options");
+    }
 }
 
 /// The colour a button returns to when not hovered.
@@ -384,7 +464,7 @@ pub(super) fn setup_hud(
                 ));
             });
             for (left, bottom, label) in [(76.0, 25.0, "F"), (89.0, 14.0, "JUMP")] {
-                root.spawn((
+                let mut button = root.spawn((
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Percent(left),
@@ -403,18 +483,80 @@ pub(super) fn setup_hud(
                     },
                     BackgroundColor(Color::srgba(0.04, 0.04, 0.04, 0.62)),
                     BorderColor::all(Color::srgba(0.95, 0.82, 0.56, 0.92)),
-                ))
-                .with_children(|button| {
-                    button.spawn((
-                        Text::new(label),
-                        TextFont {
-                            font: f.clone(),
-                            font_size: if label == "F" { 34.0 } else { 19.0 },
-                            ..default()
-                        },
-                        TextColor(Color::srgba(1.0, 0.96, 0.84, 1.0)),
-                    ));
-                });
+                ));
+                if label == "F" {
+                    button
+                        .insert(Interaction::default())
+                        .with_children(|button| {
+                            button.spawn((
+                                MobilityTouchIcon,
+                                Node {
+                                    position_type: PositionType::Absolute,
+                                    left: Val::Percent(12.0),
+                                    top: Val::Percent(12.0),
+                                    width: Val::Percent(76.0),
+                                    height: Val::Percent(76.0),
+                                    ..default()
+                                },
+                                ImageNode::default(),
+                                Visibility::Hidden,
+                                Interaction::default(),
+                                TipFor::Mobility,
+                            ));
+                            let handle = sweeps_init.add(SweepUiMaterial { sweep: 0.0 });
+                            button.spawn((
+                                Node {
+                                    position_type: PositionType::Absolute,
+                                    left: Val::Percent(12.0),
+                                    top: Val::Percent(12.0),
+                                    width: Val::Percent(76.0),
+                                    height: Val::Percent(76.0),
+                                    ..default()
+                                },
+                                MaterialNode(handle.clone()),
+                                MobilitySweep(handle),
+                            ));
+                            button.spawn((
+                                MobilityTouchLabel,
+                                Text::new("F"),
+                                TextFont {
+                                    font: f.clone(),
+                                    font_size: 34.0,
+                                    ..default()
+                                },
+                                TextColor(Color::srgba(1.0, 0.96, 0.84, 1.0)),
+                            ));
+                            button.spawn((
+                                MobilityTouchKey,
+                                Text::new("F"),
+                                TextFont {
+                                    font: f.clone(),
+                                    font_size: 15.0,
+                                    ..default()
+                                },
+                                TextColor(Color::srgba(1.0, 0.96, 0.84, 1.0)),
+                                Node {
+                                    position_type: PositionType::Absolute,
+                                    right: Val::Percent(4.0),
+                                    bottom: Val::Percent(2.0),
+                                    ..default()
+                                },
+                                Visibility::Hidden,
+                            ));
+                        });
+                } else {
+                    button.with_children(|button| {
+                        button.spawn((
+                            Text::new(label),
+                            TextFont {
+                                font: f.clone(),
+                                font_size: 19.0,
+                                ..default()
+                            },
+                            TextColor(Color::srgba(1.0, 0.96, 0.84, 1.0)),
+                        ));
+                    });
+                }
             }
             // `MainMenuExpBar`, 1024×13 at the bottom centre. The reference stacks it on the
             // 40-unit action bar; with no action bar here it rests on the screen's edge.
@@ -449,7 +591,8 @@ pub(super) fn setup_hud(
                         Color::srgb(0.58, 0.0, 0.55),
                     ),
                 ));
-                // `MainMenuXPBarTexture0`..`3`: the segment rules, 256×10 on the bar's top.
+                // `MainMenuXPBarTexture0`..`3`: split the top trim evenly so it tracks the
+                // responsive bar width on phones with different aspect ratios and UI scales.
                 for (i, top) in [0.792_968_75, 0.542_968_75, 0.292_968_75, 0.042_968_75]
                     .into_iter()
                     .enumerate()
@@ -457,9 +600,9 @@ pub(super) fn setup_hud(
                     bar.spawn((
                         Node {
                             position_type: PositionType::Absolute,
-                            left: Val::Px(256.0 * i as f32),
+                            left: Val::Percent(25.0 * i as f32),
                             top: Val::Px(0.0),
-                            width: Val::Px(256.0),
+                            width: Val::Percent(25.0),
                             height: Val::Px(10.0),
                             ..default()
                         },
@@ -503,74 +646,6 @@ pub(super) fn setup_hud(
                 });
             });
             minimap::spawn_cluster(root, f, &map);
-            // The mobility button: a 36-unit action slot in `UI-Quickslot2`, its key over it.
-            root.spawn((
-                MobilitySlot,
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: Val::Percent(50.0),
-                    bottom: Val::Px(24.0),
-                    margin: UiRect::left(Val::Px(-MOBILITY_SIZE / 2.0)),
-                    flex_direction: FlexDirection::Column,
-                    align_items: AlignItems::Center,
-                    row_gap: Val::Px(2.0),
-                    display: Display::None,
-                    ..default()
-                },
-            ))
-            .with_children(|col| {
-                col.spawn(centered(f, "F", 18.0, Color::WHITE));
-                col.spawn((
-                    Node {
-                        width: Val::Px(MOBILITY_SIZE),
-                        height: Val::Px(MOBILITY_SIZE),
-                        ..default()
-                    },
-                    Interaction::default(),
-                    TipFor::Mobility,
-                ))
-                .with_children(|slot| {
-                    // `UI-Quickslot2` is the empty slot's 64×64 frame, the button 36 inside it.
-                    slot.spawn((
-                        Node {
-                            position_type: PositionType::Absolute,
-                            left: Val::Px(-MOBILITY_SIZE * 0.42),
-                            top: Val::Px(-MOBILITY_SIZE * 0.42),
-                            width: Val::Px(MOBILITY_SIZE * 1.84),
-                            height: Val::Px(MOBILITY_SIZE * 1.84),
-                            ..default()
-                        },
-                        ImageNode {
-                            color: Color::NONE,
-                            ..default()
-                        },
-                        UiArt::crop("Interface\\Buttons\\UI-Quickslot2", [0.0, 1.0, 0.0, 1.0]),
-                    ));
-                    slot.spawn((
-                        MobilityIcon,
-                        Node {
-                            width: Val::Percent(100.0),
-                            height: Val::Percent(100.0),
-                            ..default()
-                        },
-                        ImageNode {
-                            color: Color::srgba(0.0, 0.0, 0.0, 0.6),
-                            ..default()
-                        },
-                    ));
-                    let handle = sweeps_init.add(SweepUiMaterial { sweep: 0.0 });
-                    slot.spawn((
-                        Node {
-                            position_type: PositionType::Absolute,
-                            width: Val::Percent(100.0),
-                            height: Val::Percent(100.0),
-                            ..default()
-                        },
-                        MaterialNode(handle.clone()),
-                        MobilitySweep(handle),
-                    ));
-                });
-            });
             root.spawn(Node {
                 width: Val::Percent(100.0),
                 padding: UiRect::new(Val::Px(44.0), Val::Px(44.0), Val::Px(42.0), Val::Vh(1.4)),
@@ -860,26 +935,133 @@ pub(super) fn setup_hud(
         ))
         .with_children(|root| {
             root.spawn(centered(f, "Paused", 46.0, GOLD));
-            for (label, action) in [
-                ("Resume", UiAction::Resume),
-                ("Abandon run", UiAction::MainMenu),
-                ("Quit game", UiAction::Quit),
-            ] {
-                root.spawn((
-                    button(action, BUTTON),
-                    Node {
-                        width: Val::Px(240.0),
-                        justify_content: JustifyContent::Center,
-                        padding: UiRect::axes(Val::Px(20.0), Val::Px(8.0)),
-                        border: UiRect::all(Val::Px(2.0)),
-                        border_radius: BorderRadius::all(Val::Px(4.0)),
+            root.spawn((
+                PauseChoices,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    row_gap: Val::Px(10.0),
+                    ..default()
+                },
+            ))
+            .with_children(|choices| {
+                for (label, action) in [
+                    ("Resume", UiAction::Resume),
+                    ("Options", UiAction::Options),
+                    ("Abandon run", UiAction::MainMenu),
+                    ("Quit game", UiAction::Quit),
+                ] {
+                    choices
+                        .spawn((
+                            button(action, BUTTON),
+                            Node {
+                                width: Val::Px(240.0),
+                                justify_content: JustifyContent::Center,
+                                padding: UiRect::axes(Val::Px(20.0), Val::Px(8.0)),
+                                border: UiRect::all(Val::Px(2.0)),
+                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                ..default()
+                            },
+                        ))
+                        .with_children(|b| {
+                            b.spawn(text(f, label, 20.0, Color::WHITE));
+                        });
+                }
+            });
+        });
+
+    commands
+        .spawn((
+            OptionsRoot,
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.52)),
+            GlobalZIndex(450),
+            Visibility::Hidden,
+        ))
+        .with_children(|root| {
+            root.spawn((
+                OptionsPanel,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    row_gap: Val::Px(12.0),
+                    padding: UiRect::all(Val::Px(16.0)),
+                    border: UiRect::all(Val::Px(2.0)),
+                    border_radius: BorderRadius::all(Val::Px(8.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.04, 0.03, 0.02, 0.96)),
+                BorderColor::all(EDGE),
+            ))
+            .with_children(|panel| {
+                panel.spawn(centered(f, "Options", 30.0, GOLD));
+                panel
+                    .spawn(Node {
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(12.0),
                         ..default()
-                    },
-                ))
-                .with_children(|b| {
-                    b.spawn(text(f, label, 20.0, Color::WHITE));
-                });
-            }
+                    })
+                    .with_children(|row| {
+                        row.spawn(text(f, "Master audio", 18.0, Color::WHITE));
+                        row.spawn((OptionsAudioValue, text(f, "100%", 18.0, GOLD)));
+                        for (label, action) in
+                            [("−", UiAction::AudioDown), ("+", UiAction::AudioUp)]
+                        {
+                            row.spawn((
+                                button(action, BUTTON),
+                                Node {
+                                    min_width: Val::Px(52.0),
+                                    justify_content: JustifyContent::Center,
+                                    padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
+                                    border: UiRect::all(Val::Px(2.0)),
+                                    ..default()
+                                },
+                            ))
+                            .with_children(|b| {
+                                b.spawn(text(f, label, 20.0, Color::WHITE));
+                            });
+                        }
+                    });
+                panel
+                    .spawn((
+                        button(UiAction::CycleFrameLimit, BUTTON),
+                        Node {
+                            min_width: Val::Px(300.0),
+                            justify_content: JustifyContent::Center,
+                            padding: UiRect::axes(Val::Px(18.0), Val::Px(8.0)),
+                            border: UiRect::all(Val::Px(2.0)),
+                            border_radius: BorderRadius::all(Val::Px(4.0)),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|button| {
+                        button.spawn((
+                            OptionsFrameLimitValue,
+                            centered(f, "Frame limit: Unlimited", 18.0, Color::WHITE),
+                        ));
+                    });
+                panel
+                    .spawn((
+                        button(UiAction::OptionsBack, BUTTON),
+                        Node {
+                            min_width: Val::Px(180.0),
+                            justify_content: JustifyContent::Center,
+                            padding: UiRect::axes(Val::Px(18.0), Val::Px(8.0)),
+                            border: UiRect::all(Val::Px(2.0)),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|button| {
+                        button.spawn(text(f, "Back", 18.0, Color::WHITE));
+                    });
+            });
         });
 
     // --- Results. ---
@@ -1159,6 +1341,9 @@ pub(super) fn buttons(
     mut next: ResMut<NextState<Phase>>,
     mut exit: MessageWriter<AppExit>,
     phase: Res<State<Phase>>,
+    mut sound: ResMut<crate::sound::SoundConfig>,
+    mut options: ResMut<SurvivorOptions>,
+    mut winit: ResMut<WinitSettings>,
 ) {
     for (interaction, action, base, mut bg) in &mut presses {
         match interaction {
@@ -1169,6 +1354,29 @@ pub(super) fn buttons(
                 match (*action, *phase.get()) {
                     (UiAction::Pause, Phase::Playing) => next.set(Phase::Paused),
                     (UiAction::Resume, Phase::Paused) => next.set(Phase::Playing),
+                    (UiAction::Options, Phase::Paused) => options.open = true,
+                    (UiAction::OptionsBack, Phase::Paused | Phase::Menu) => options.open = false,
+                    (UiAction::AudioDown, Phase::Paused | Phase::Menu) if options.open => {
+                        sound.master = (sound.master - 0.1).clamp(0.0, 1.0);
+                        save_options(&sound, &options);
+                    }
+                    (UiAction::AudioUp, Phase::Paused | Phase::Menu) if options.open => {
+                        sound.master = (sound.master + 0.1).clamp(0.0, 1.0);
+                        save_options(&sound, &options);
+                    }
+                    (UiAction::CycleFrameLimit, Phase::Paused | Phase::Menu) if options.open => {
+                        options.frame_limit = match options.frame_limit {
+                            None => Some(30),
+                            Some(30) => Some(45),
+                            Some(45) => Some(60),
+                            Some(_) => None,
+                        };
+                        winit.focused_mode =
+                            options.frame_limit.map_or(UpdateMode::Continuous, |fps| {
+                                UpdateMode::reactive(Duration::from_secs_f64(1.0 / fps as f64))
+                            });
+                        save_options(&sound, &options);
+                    }
                     (UiAction::MainMenu, Phase::Paused | Phase::GameOver) => next.set(Phase::Menu),
                     (UiAction::Quit, Phase::Paused | Phase::GameOver) => {
                         exit.write(AppExit::Success);
@@ -1176,6 +1384,27 @@ pub(super) fn buttons(
                     _ => {}
                 }
             }
+        }
+    }
+}
+
+pub(super) fn refresh_options(
+    sound: Res<crate::sound::SoundConfig>,
+    options: Res<SurvivorOptions>,
+    mut audio: Query<&mut Text, With<OptionsAudioValue>>,
+    mut frame_limit: Query<&mut Text, With<OptionsFrameLimitValue>>,
+) {
+    if sound.is_changed() {
+        if let Ok(mut text) = audio.single_mut() {
+            **text = format!("{:.0}%", sound.master * 100.0);
+        }
+    }
+    if options.is_changed() {
+        if let Ok(mut text) = frame_limit.single_mut() {
+            **text = match options.frame_limit {
+                Some(fps) => format!("Frame limit: {fps} FPS"),
+                None => "Frame limit: Unlimited".to_owned(),
+            };
         }
     }
 }
@@ -1542,25 +1771,38 @@ pub(super) fn fill_icons(
 pub(super) fn refresh_mobility(
     run: Res<Run>,
     mut commands: Commands,
-    mut slot: Query<&mut Node, With<MobilitySlot>>,
-    icon: Query<(Entity, Option<&SpellIcon>), With<MobilityIcon>>,
+    mut icon: Query<(Entity, Option<&SpellIcon>, &mut Visibility), With<MobilityTouchIcon>>,
+    mut label: Query<&mut Visibility, (With<MobilityTouchLabel>, Without<MobilityTouchKey>)>,
+    mut key: Query<&mut Visibility, (With<MobilityTouchKey>, Without<MobilityTouchLabel>)>,
     sweep: Query<&MobilitySweep>,
     mut mats: ResMut<Assets<SweepUiMaterial>>,
 ) {
     let def = run.mobility();
-    if let Ok(mut node) = slot.single_mut() {
-        let display = if def.is_some() {
-            Display::Flex
+    let learned = def.is_some();
+    if let Ok((_, _, mut visibility)) = icon.single_mut() {
+        *visibility = if learned {
+            Visibility::Inherited
         } else {
-            Display::None
+            Visibility::Hidden
         };
-        if node.display != display {
-            node.display = display;
-        }
+    }
+    if let Ok(mut visibility) = label.single_mut() {
+        *visibility = if learned {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        };
+    }
+    if let Ok(mut visibility) = key.single_mut() {
+        *visibility = if learned {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
     }
     let Some(def) = def else { return };
     // A new spell re-arms the icon fill ([`fill_icons`]).
-    if let Ok((e, have)) = icon.single() {
+    if let Ok((e, have, _)) = icon.single_mut() {
         if have.is_none_or(|s| s.0 != def.spell) {
             commands
                 .entity(e)
@@ -2318,6 +2560,7 @@ pub(super) fn icon_tooltip(
 #[allow(clippy::type_complexity)]
 pub(super) fn show_panels(
     phase: Res<State<Phase>>,
+    mut options: ResMut<SurvivorOptions>,
     mut pause_button: Query<&mut Visibility, With<PauseButton>>,
     mut roots: Query<
         (
@@ -2328,6 +2571,7 @@ pub(super) fn show_panels(
             Option<&LevelUpRoot>,
             Option<&PauseRoot>,
             Option<&OverRoot>,
+            Option<&OptionsRoot>,
         ),
         (
             Or<(
@@ -2336,12 +2580,16 @@ pub(super) fn show_panels(
                 With<LevelUpRoot>,
                 With<PauseRoot>,
                 With<OverRoot>,
+                With<OptionsRoot>,
             )>,
             Without<PauseButton>,
         ),
     >,
 ) {
     let p = *phase.get();
+    if p != Phase::Menu && p != Phase::Paused {
+        options.open = false;
+    }
     // A hidden panel leaves the layout too: a merely invisible button still takes clicks.
     let set = |(mut v, mut node): (Mut<Visibility>, Mut<Node>), on: bool| {
         let want = if on {
@@ -2357,8 +2605,10 @@ pub(super) fn show_panels(
             node.display = display;
         }
     };
-    for (visibility, node, menu, hud, level_up, pause, over) in &mut roots {
-        let on = if menu.is_some() {
+    for (visibility, node, menu, hud, level_up, pause, over, options_root) in &mut roots {
+        let on = if options_root.is_some() {
+            options.open && (p == Phase::Menu || p == Phase::Paused)
+        } else if menu.is_some() {
             p == Phase::Menu
         } else if hud.is_some() {
             p != Phase::Menu && p != Phase::GameOver
