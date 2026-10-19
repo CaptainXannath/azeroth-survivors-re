@@ -375,6 +375,7 @@ pub(super) fn touch_visuals(
             &mut Node,
             Option<&VirtualStickBase>,
             Option<&VirtualStickKnob>,
+            &mut Visibility,
         ),
         Or<(With<VirtualStickBase>, With<VirtualStickKnob>)>,
     >,
@@ -386,12 +387,16 @@ pub(super) fn touch_visuals(
         return;
     };
     let height = window.height();
-    let center = controls
-        .stick_origin
-        .unwrap_or(Vec2::new(window.width() * 0.12, height * 0.85));
+    let Some(center) = controls.stick_origin else {
+        for (_, _, _, mut visibility) in &mut stick_nodes {
+            *visibility = Visibility::Hidden;
+        }
+        return;
+    };
     let stick_radius = height * 0.114;
     let knob_center = height * 0.0665;
-    for (mut node, base, knob) in &mut stick_nodes {
+    for (mut node, base, knob, mut visibility) in &mut stick_nodes {
+        *visibility = Visibility::Inherited;
         if base.is_some() {
             // Touch positions name the stick center; position its top-left edge from that point.
             node.left = Val::Px(center.x - stick_radius);
@@ -444,6 +449,7 @@ pub(super) fn setup_hud(
                 },
                 BackgroundColor(Color::srgba(0.04, 0.04, 0.04, 0.58)),
                 BorderColor::all(Color::srgba(0.95, 0.82, 0.56, 0.88)),
+                Visibility::Hidden,
             ))
             .with_children(|base| {
                 base.spawn((
@@ -458,6 +464,7 @@ pub(super) fn setup_hud(
                         ..default()
                     },
                     BackgroundColor(Color::srgba(0.95, 0.82, 0.56, 0.72)),
+                    Visibility::Hidden,
                 ));
             });
             for (left, bottom, label) in [(76.0, 25.0, "F"), (89.0, 14.0, "JUMP")] {

@@ -26,6 +26,8 @@ pub(super) fn read_touches(
     controls.stick_offset = Vec2::ZERO;
 
     if *phase.get() != Phase::Playing {
+        controls.stick_touch = None;
+        controls.stick_origin = None;
         return;
     }
 
@@ -85,4 +87,3 @@ pub(super) fn read_touches(
         controls.mobility_pressed |= position.distance(mobility_center) <= 72.0 * ui_scale;
     }
 }
-
