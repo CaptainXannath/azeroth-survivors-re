@@ -2278,3 +2278,87 @@ pub(super) fn icon_tooltip(
                     },
                 )
             };
+            b.spawn(Node {
+                justify_content: JustifyContent::SpaceBetween,
+                column_gap: Val::Px(16.0),
+                ..default()
+            })
+            .with_children(|row| {
+                row.spawn(face(line.left, line.size, line.color));
+                if let Some((text, color)) = line.right {
+                    row.spawn((
+                        face(text, line.size, color),
+                        TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                    ));
+                }
+            });
+        }
+    });
+}
+
+#[allow(clippy::type_complexity)]
+pub(super) fn show_panels(
+    phase: Res<State<Phase>>,
+    mut pause_button: Query<&mut Visibility, With<PauseButton>>,
+    mut roots: Query<
+        (
+            &mut Visibility,
+            &mut Node,
+            Option<&MenuRoot>,
+            Option<&HudRoot>,
+            Option<&LevelUpRoot>,
+            Option<&PauseRoot>,
+            Option<&OverRoot>,
+        ),
+        (
+            Or<(
+                With<MenuRoot>,
+                With<HudRoot>,
+                With<LevelUpRoot>,
+                With<PauseRoot>,
+                With<OverRoot>,
+            )>,
+            Without<PauseButton>,
+        ),
+    >,
+) {
+    let p = *phase.get();
+    // A hidden panel leaves the layout too: a merely invisible button still takes clicks.
+    let set = |(mut v, mut node): (Mut<Visibility>, Mut<Node>), on: bool| {
+        let want = if on {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+        if *v != want {
+            *v = want;
+        }
+        let display = if on { Display::Flex } else { Display::None };
+        if node.display != display {
+            node.display = display;
+        }
+    };
+    for (visibility, node, menu, hud, level_up, pause, over) in &mut roots {
+        let on = if menu.is_some() {
+            p == Phase::Menu
+        } else if hud.is_some() {
+            p != Phase::Menu && p != Phase::GameOver
+        } else if level_up.is_some() {
+            p == Phase::LevelUp
+        } else if pause.is_some() {
+            p == Phase::Paused
+        } else if over.is_some() {
+            p == Phase::GameOver
+        } else {
+            false
+        };
+        set((visibility, node), on);
+    }
+    for mut visibility in &mut pause_button {
+        *visibility = if p == Phase::Playing {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+    }
+}
