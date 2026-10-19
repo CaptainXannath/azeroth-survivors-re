@@ -42,7 +42,20 @@ pub(crate) fn home() -> Option<PathBuf> {
     resident_home()
 }
 
+/// Steps 2 and 3 of [`home`]: the folder the build itself lives in. iOS writes under Documents,
+/// which is writable and exposed to the user through Files; the app bundle beside `current_exe`
+/// is read-only and cannot hold crash reports or saved state.
+#[cfg(target_os = "ios")]
+fn resident_home() -> Option<PathBuf> {
+    Some(
+        PathBuf::from(std::env::var_os("HOME")?)
+            .join("Documents")
+            .join(STATE_DIR),
+    )
+}
+
 /// Steps 2 and 3 of [`home`]: the folder the build itself lives in.
+#[cfg(not(target_os = "ios"))]
 fn resident_home() -> Option<PathBuf> {
     // 2 · the project folder, dev builds only.
     if let Some(root) = dev_project_root() {
@@ -643,3 +656,4 @@ mod tests {
         std::fs::remove_dir_all(&tmp).ok();
     }
 }
+
